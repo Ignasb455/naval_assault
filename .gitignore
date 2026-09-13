@@ -1,0 +1,138 @@
+# Java Build & Compilation
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+target/
+build/
+dist/
+out/
+
+# Maven
+.classpath
+.project
+.settings/
+bin/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+
+# Gradle
+.gradle
+gradle/
+gradlew
+gradlew.bat
+build.gradle.bak
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+*.idc
+*.orig
+out/
+
+# IDE - Eclipse
+.classpath
+.project
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VS Code
+.vscode/
+*.code-workspace
+
+# IDE - NetBeans
+nbproject/
+.nb-gradle/
+nb-configuration.xml
+
+# IDE - Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Game Engines & Frameworks
+# LibGDX
+android/
+html/
+ios/
+robovm.xml
+local.properties
+
+# lwjgl
+natives/
+
+# General Cache & Temp
+*.log
+*.swp
+*.swo
+*~
+.DS_Store
+.cache/
+*.tmp
+
+# Windows OS
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+ehthumbs.db
+*.lnk
+.windows/
+
+# macOS OS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+.TemporaryItems
+.fseventsd
+.com.apple.timemachine.donotpresent
+
+# Linux OS
+.directory
+.Trash-*
+*~
+.nfs*
+
+# Local Environment Variables
+.env
+.env.local
+*.properties
+!gradle.properties
+!pom.xml
+
+# Runtime Data
+*.dat
+*.db
+saves/
+screenshots/
+logs/
+
+# Package Managers
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# OS Backups & Recovery
+*.bak
+*.backup
+*.swn
+*.swd
+*.orig
+
+# Misc
+.gitignore.bak
+.project
+.metadata/
+RemoteSystemsTempFiles/

@@ -1,0 +1,111 @@
+package gunmayhem.core;
+
+import java.awt.Color;
+
+/**
+ * A controllable character. Holds physics state (position/velocity), the
+ * Gun-Mayhem-style damage/knockback meter, and the input intent set each frame
+ * by the input layer. All movement resolution lives in {@link GameWorld}.
+ */
+public final class Player {
+    public final int id;
+    public final String name;
+    public final Color color;
+
+    private final float spawnX;
+    private final float spawnY;
+
+    public float x;
+    public float y;
+    public float vx;
+    public float vy;
+
+    public int lives = GameConfig.START_LIVES;
+    public float damage;               // grows on hits, scales knockback
+    public int facing = 1;             // +1 right, -1 left
+
+    public boolean onGround;
+    public int jumpsLeft = GameConfig.MAX_JUMPS;
+
+    // Input intent for the current frame (set by GamePanel from the keyboard).
+    public boolean wantLeft;
+    public boolean wantRight;
+
+    private float shootTimer;
+
+    public Player(int id, String name, Color color, float spawnX, float spawnY) {
+        this.id = id;
+        this.name = name;
+        this.color = color;
+        this.spawnX = spawnX;
+        this.spawnY = spawnY;
+        this.x = spawnX;
+        this.y = spawnY;
+    }
+
+    public boolean isAlive() {
+        return lives > 0;
+    }
+
+    public Aabb bounds() {
+        return new Aabb(x, y, GameConfig.PLAYER_WIDTH, GameConfig.PLAYER_HEIGHT);
+    }
+
+    /** Attempt a jump. Works from the ground or as an air (double) jump. */
+    public void jump() {
+        if (!isAlive() || jumpsLeft <= 0) {
+            return;
+        }
+        vy = -GameConfig.JUMP_SPEED;
+        jumpsLeft--;
+        onGround = false;
+    }
+
+    /** Fire a bullet if the cooldown has elapsed. Returns the new bullet or null. */
+    public Bullet shoot() {
+        if (!isAlive() || shootTimer > 0f) {
+            return null;
+        }
+        shootTimer = GameConfig.SHOOT_COOLDOWN;
+
+        Aabb b = bounds();
+        float muzzleX = facing > 0
+            ? b.right() + 2f
+            : b.left() - GameConfig.BULLET_WIDTH - 2f;
+        float muzzleY = b.centerY() - GameConfig.BULLET_HEIGHT / 2f;
+
+        return new Bullet(muzzleX, muzzleY, GameConfig.BULLET_SPEED * facing, id);
+    }
+
+    /** Apply knockback from a hit and bump the damage meter. */
+    public void takeHit(int fromDirectionX) {
+        float impulse = GameConfig.KNOCKBACK_BASE + damage * GameConfig.KNOCKBACK_PER_DAMAGE;
+        vx = fromDirectionX * impulse;
+        vy = -GameConfig.KNOCKBACK_UP;
+        damage += GameConfig.DAMAGE_PER_HIT;
+    }
+
+    /** Advance per-player timers and resolve facing from movement intent. */
+    public void tick(float dt) {
+        if (shootTimer > 0f) {
+            shootTimer -= dt;
+        }
+        if (wantLeft && !wantRight) {
+            facing = -1;
+        } else if (wantRight && !wantLeft) {
+            facing = 1;
+        }
+    }
+
+    /** Lose a life and respawn at the start point. */
+    public void loseLifeAndRespawn() {
+        lives--;
+        damage = 0f;
+        vx = 0f;
+        vy = 0f;
+        x = spawnX;
+        y = spawnY;
+        jumpsLeft = GameConfig.MAX_JUMPS;
+        onGround = false;
+    }
+}

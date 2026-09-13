@@ -1,0 +1,45 @@
+package gunmayhem.core;
+
+/**
+ * Central tuning values for the demo. Units are pixels and seconds.
+ * Keeping them in one place makes the physics easy to tweak.
+ */
+public final class GameConfig {
+    private GameConfig() { }
+
+    // World size (logical pixels).
+    public static final int WORLD_WIDTH = 960;
+    public static final int WORLD_HEIGHT = 600;
+
+    // Physics.
+    public static final float GRAVITY = 2000f;       // downward acceleration
+    public static final float MOVE_SPEED = 320f;      // horizontal run speed
+    public static final float JUMP_SPEED = 720f;      // initial upward velocity on a jump
+    public static final int MAX_JUMPS = 2;            // ground jump + one air jump
+    public static final float MAX_FALL_SPEED = 1400f; // terminal velocity
+
+    // Player body.
+    public static final float PLAYER_WIDTH = 34f;
+    public static final float PLAYER_HEIGHT = 46f;
+    public static final int START_LIVES = 3;
+
+    // Shooting.
+    public static final float BULLET_SPEED = 900f;
+    public static final float BULLET_WIDTH = 12f;
+    public static final float BULLET_HEIGHT = 5f;
+    public static final float SHOOT_COOLDOWN = 0.18f; // seconds between shots
+
+    // Knockback: like a Smash-style damage meter, hits push harder as damage grows.
+    // Kept above MOVE_SPEED so even a first hit overpowers the victim's own
+    // movement input and visibly throws them (below it, control cancels the hit).
+    public static final float KNOCKBACK_BASE = 420f;       // horizontal impulse at 0% damage
+    public static final float KNOCKBACK_PER_DAMAGE = 14f;  // extra impulse per damage point
+    public static final float KNOCKBACK_UP = 260f;         // small upward pop on hit
+    public static final float DAMAGE_PER_HIT = 8f;
+
+    // How far past a world edge a player falls before losing a life.
+    public static final float DEATH_MARGIN = 120f;
+
+    // Per-second horizontal decay applied while being knocked back.
+    public static final float KNOCKBACK_FRICTION = 3.5f;
+}
