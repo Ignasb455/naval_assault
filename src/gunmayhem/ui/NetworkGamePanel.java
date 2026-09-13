@@ -1,7 +1,7 @@
 package gunmayhem.ui;
 
 import gunmayhem.core.GameConfig;
-import gunmayhem.core.PlayerStyle;
+import gunmayhem.net.LobbyView;
 import gunmayhem.net.NetworkClient;
 import gunmayhem.net.StateSnapshot;
 import gunmayhem.render.Java2DRenderer;
@@ -9,8 +9,11 @@ import gunmayhem.render.Renderer;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.HashSet;
@@ -19,12 +22,14 @@ import javax.swing.JPanel;
 import javax.swing.Timer;
 
 /**
- * The networked client view: renders the latest server {@link StateSnapshot} and
- * forwards this player's input to the server. Runs no simulation of its own.
+ * The one and only game view. It renders whatever the server last sent — the
+ * lobby countdown before the match, the authoritative {@link StateSnapshot}
+ * during it — and forwards this player's input. It runs no simulation, so there
+ * is no way for two clients to disagree about the game state.
  *
- * <p>Either control scheme drives your player, so both windows are playable on
- * one keyboard for testing: move {@code A/D} or {@code arrows}, jump {@code W}
- * or {@code Up}, shoot {@code F} or {@code L}, {@code R} to restart when over.
+ * <p>Either control scheme drives your player, so testing several windows on one
+ * keyboard is fine: move {@code A/D} or {@code arrows}, jump {@code W} or
+ * {@code Up}, shoot {@code F} or {@code L}, {@code R} for a rematch when over.
  */
 public final class NetworkGamePanel extends JPanel {
     private final NetworkClient client;
@@ -43,6 +48,12 @@ public final class NetworkGamePanel extends JPanel {
         addKeyListener(new KeyAdapter() {
             @Override public void keyPressed(KeyEvent e) { onKeyDown(e.getKeyCode()); }
             @Override public void keyReleased(KeyEvent e) { onKeyUp(e.getKeyCode()); }
+        });
+
+        // Without this, keys held when the window loses focus never produce a
+        // release event and the player runs off the stage on their own.
+        addFocusListener(new FocusAdapter() {
+            @Override public void focusLost(FocusEvent e) { releaseAllKeys(); }
         });
 
         Timer timer = new Timer(16, e -> repaint());
@@ -73,6 +84,11 @@ public final class NetworkGamePanel extends JPanel {
         sendMovementIfChanged();
     }
 
+    private void releaseAllKeys() {
+        held.clear();
+        sendMovementIfChanged();
+    }
+
     private void sendMovementIfChanged() {
         boolean left = held.stream().anyMatch(this::isLeft);
         boolean right = held.stream().anyMatch(this::isRight);
@@ -88,39 +104,57 @@ public final class NetworkGamePanel extends JPanel {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
 
+        String rejection = client.rejectionMessage();
         StateSnapshot state = client.latest();
-        if (state != null) {
+        LobbyView lobby = client.lobby();
+
+        if (rejection != null) {
+            drawStatus(g2, rejection, "Try again once the current match ends.");
+        } else if (client.isInMatch() && state != null) {
             renderer.draw(g2, state);
             drawYouTag(g2);
+        } else if (lobby != null) {
+            renderer.drawLobby(g2, lobby, client.playerId());
+            if (!client.isConnected()) {
+                drawStatus(g2, "Disconnected from server.", "");
+            }
         } else {
-            drawStatus(g2, client.wasRejectedFull()
-                ? "Server is full (2 players already connected)."
-                : client.isConnected() ? "Connecting to server..." : "Disconnected from server.");
+            drawStatus(g2, client.isConnected()
+                ? "Connecting to server..." : "Disconnected from server.", "");
         }
     }
 
     private void drawYouTag(Graphics2D g) {
-        int id = client.playerId();
-        if (id < 0) {
+        if (client.playerId() < 0) {
             return;
         }
         g.setFont(new Font("Monospaced", Font.BOLD, 13));
-        g.setColor(PlayerStyle.color(id));
-        String tag = "YOU: " + PlayerStyle.name(id);
+        g.setColor(gunmayhem.core.PlayerStyle.color(client.playerId()));
+        String tag = "YOU: " + client.name();
         int w = g.getFontMetrics().stringWidth(tag);
-        g.drawString(tag, GameConfig.WORLD_WIDTH - w - 16, 24);
+        g.drawString(tag, GameConfig.WORLD_WIDTH - w - 16, 44);
         if (!client.isConnected()) {
             g.setColor(Color.WHITE);
-            g.drawString("(disconnected)", GameConfig.WORLD_WIDTH - w - 16, 42);
+            g.drawString("(disconnected)", GameConfig.WORLD_WIDTH - w - 16, 62);
         }
     }
 
-    private void drawStatus(Graphics2D g, String message) {
+    private void drawStatus(Graphics2D g, String message, String detail) {
         g.setColor(new Color(24, 26, 38));
         g.fillRect(0, 0, GameConfig.WORLD_WIDTH, GameConfig.WORLD_HEIGHT);
+
         g.setColor(Color.WHITE);
         g.setFont(new Font("SansSerif", Font.BOLD, 22));
-        int w = g.getFontMetrics().stringWidth(message);
-        g.drawString(message, (GameConfig.WORLD_WIDTH - w) / 2, GameConfig.WORLD_HEIGHT / 2);
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(message, (GameConfig.WORLD_WIDTH - fm.stringWidth(message)) / 2,
+            GameConfig.WORLD_HEIGHT / 2);
+
+        if (detail != null && !detail.isEmpty()) {
+            g.setFont(new Font("SansSerif", Font.PLAIN, 15));
+            FontMetrics fm2 = g.getFontMetrics();
+            g.setColor(new Color(180, 186, 210));
+            g.drawString(detail, (GameConfig.WORLD_WIDTH - fm2.stringWidth(detail)) / 2,
+                GameConfig.WORLD_HEIGHT / 2 + 32);
+        }
     }
 }

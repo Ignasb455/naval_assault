@@ -27,7 +27,8 @@ public final class Player {
     public boolean onGround;
     public int jumpsLeft = GameConfig.MAX_JUMPS;
 
-    // Input intent for the current frame (set by GamePanel from the keyboard).
+    // Input intent for the current frame, set by the server from the owning
+    // client's input messages.
     public boolean wantLeft;
     public boolean wantRight;
 
@@ -95,6 +96,20 @@ public final class Player {
         } else if (wantRight && !wantLeft) {
             facing = 1;
         }
+    }
+
+    /** Drop all movement intent (used when a player's client disconnects). */
+    public void clearInput() {
+        wantLeft = false;
+        wantRight = false;
+    }
+
+    /** Remove the player from the match for good, without a respawn. */
+    public void eliminate() {
+        lives = 0;
+        clearInput();
+        vx = 0f;
+        vy = 0f;
     }
 
     /** Lose a life and respawn at the start point. */

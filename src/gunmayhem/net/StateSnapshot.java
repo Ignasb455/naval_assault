@@ -17,6 +17,7 @@ public final class StateSnapshot {
 
     public static final class PlayerView {
         public final int id;
+        public final String name;
         public final float x;
         public final float y;
         public final int facing;
@@ -24,8 +25,10 @@ public final class StateSnapshot {
         public final int lives;
         public final boolean alive;
 
-        public PlayerView(int id, float x, float y, int facing, float damage, int lives, boolean alive) {
+        public PlayerView(int id, String name, float x, float y, int facing,
+                          float damage, int lives, boolean alive) {
             this.id = id;
+            this.name = name;
             this.x = x;
             this.y = y;
             this.facing = facing;
@@ -57,11 +60,11 @@ public final class StateSnapshot {
         this.winnerId = winnerId;
     }
 
-    /** Capture the current authoritative world state (server side, and local play). */
+    /** Capture the current authoritative world state. Server side only. */
     public static StateSnapshot fromWorld(GameWorld world) {
         List<PlayerView> ps = new ArrayList<>();
         for (Player p : world.players()) {
-            ps.add(new PlayerView(p.id, p.x, p.y, p.facing, p.damage, p.lives, p.isAlive()));
+            ps.add(new PlayerView(p.id, p.name, p.x, p.y, p.facing, p.damage, p.lives, p.isAlive()));
         }
         List<BulletView> bs = new ArrayList<>();
         for (Bullet b : world.bullets()) {
@@ -69,6 +72,16 @@ public final class StateSnapshot {
         }
         int winner = world.winner() != null ? world.winner().id : -1;
         return new StateSnapshot(ps, bs, world.isOver(), winner);
+    }
+
+    /** Nickname of the player holding that id, or a blank string if unknown. */
+    public String nameOf(int id) {
+        for (PlayerView p : players) {
+            if (p.id == id) {
+                return p.name;
+            }
+        }
+        return "";
     }
 
     // ---- Wire format --------------------------------------------------------
@@ -83,6 +96,7 @@ public final class StateSnapshot {
         for (PlayerView p : players) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", p.id);
+            m.put("name", p.name);
             m.put("x", p.x);
             m.put("y", p.y);
             m.put("facing", p.facing);
@@ -116,6 +130,7 @@ public final class StateSnapshot {
             Map<String, Object> m = (Map<String, Object>) o;
             players.add(new PlayerView(
                 asInt(m.get("id"), 0),
+                asString(m.get("name")),
                 asFloat(m.get("x")),
                 asFloat(m.get("y")),
                 asInt(m.get("facing"), 1),
@@ -131,6 +146,10 @@ public final class StateSnapshot {
         }
 
         return new StateSnapshot(players, bullets, over, winnerId);
+    }
+
+    private static String asString(Object o) {
+        return o instanceof String s ? s : "";
     }
 
     private static float asFloat(Object o) {

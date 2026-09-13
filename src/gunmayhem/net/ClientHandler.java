@@ -5,6 +5,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import gunmayhem.core.PlayerStyle;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -23,16 +24,27 @@ public final class ClientHandler {
     private final BufferedWriter out;
     private final Queue<Map<String, Object>> inbox = new ConcurrentLinkedQueue<>();
     private volatile boolean connected = true;
+    private volatile String name;
 
     public ClientHandler(Socket socket, int playerId) throws IOException {
         this.socket = socket;
         this.playerId = playerId;
+        this.name = PlayerStyle.name(playerId);
         this.in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
         this.out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
     }
 
     public int playerId() {
         return playerId;
+    }
+
+    /** The nickname this player chose (defaults to the slot name until they join). */
+    public String name() {
+        return name;
+    }
+
+    public void setName(String raw) {
+        this.name = PlayerStyle.sanitizeName(raw, playerId);
     }
 
     public boolean isConnected() {

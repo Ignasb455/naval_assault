@@ -4,6 +4,7 @@ import gunmayhem.core.GameConfig;
 import gunmayhem.core.Platform;
 import gunmayhem.core.PlayerStyle;
 import gunmayhem.core.Stage;
+import gunmayhem.net.LobbyView;
 import gunmayhem.net.StateSnapshot;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -14,30 +15,32 @@ import java.awt.RenderingHints;
 import java.util.List;
 
 /**
- * Draws a {@link StateSnapshot} with Java2D primitives: rectangles for platforms
- * and players, small rectangles for bullets, and text for the HUD. Platforms are
- * the static stage; everything else comes from the snapshot.
+ * Draws the game with Java2D primitives: rectangles for platforms and players,
+ * small rectangles for bullets, and text for the HUD, the lobby and the
+ * game-over banner. Platforms are the static stage; everything else comes from
+ * the server.
  */
 public final class Java2DRenderer implements Renderer {
     private static final Color BACKGROUND = new Color(24, 26, 38);
     private static final Color PLATFORM = new Color(70, 78, 110);
     private static final Color PLATFORM_EDGE = new Color(120, 132, 170);
     private static final Color BULLET = new Color(255, 212, 0);
+    private static final Color MUTED = new Color(150, 156, 180);
+    private static final Color DIM = new Color(220, 220, 220, 150);
 
     private final Font hudFont = new Font("Monospaced", Font.BOLD, 13);
+    private final Font nameFont = new Font("SansSerif", Font.BOLD, 13);
+    private final Font titleFont = new Font("SansSerif", Font.BOLD, 40);
     private final Font bigFont = new Font("SansSerif", Font.BOLD, 44);
+    private final Font countdownFont = new Font("SansSerif", Font.BOLD, 92);
+    private final Font seatFont = new Font("SansSerif", Font.BOLD, 18);
 
     private final List<Platform> platforms = Stage.createPlatforms();
 
     @Override
     public void draw(Graphics2D g, StateSnapshot state) {
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-            RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-
-        g.setColor(BACKGROUND);
-        g.fillRect(0, 0, GameConfig.WORLD_WIDTH, GameConfig.WORLD_HEIGHT);
-
-        drawPlatforms(g);
+        prepare(g);
+        drawBackdrop(g);
         drawBullets(g, state);
         drawPlayers(g, state);
         drawHud(g, state);
@@ -47,7 +50,125 @@ public final class Java2DRenderer implements Renderer {
         }
     }
 
-    private void drawPlatforms(Graphics2D g) {
+    @Override
+    public void drawLobby(Graphics2D g, LobbyView lobby, int myPlayerId) {
+        prepare(g);
+        // No stage preview here: faded platforms cut across the countdown digits
+        // and read as artefacts rather than scenery.
+        g.setColor(BACKGROUND);
+        g.fillRect(0, 0, GameConfig.WORLD_WIDTH, GameConfig.WORLD_HEIGHT);
+
+        g.setColor(Color.WHITE);
+        g.setFont(titleFont);
+        centerString(g, "GUN MAYHEM", 108);
+
+        // Caption, big number and hint always sit at the same three baselines, so
+        // nothing jumps around when the countdown starts.
+        g.setFont(nameFont);
+        g.setColor(MUTED);
+        centerString(g, lobby.counting ? "MATCH STARTS IN" : "WAITING FOR PLAYERS", 158);
+
+        g.setFont(countdownFont);
+        if (lobby.counting) {
+            // The countdown is the server's clock, so every client shows the same
+            // number; it turns red for the last five seconds.
+            int seconds = lobby.displaySeconds();
+            g.setColor(seconds <= 5 ? new Color(255, 99, 71) : Color.WHITE);
+            centerString(g, Integer.toString(seconds), 252);
+        } else {
+            g.setColor(new Color(255, 255, 255, 55));
+            centerString(g, Integer.toString((int) GameConfig.LOBBY_COUNTDOWN_SECONDS), 252);
+        }
+
+        g.setFont(nameFont);
+        g.setColor(MUTED);
+        centerString(g, lobbyHint(lobby), 290);
+
+        drawSeats(g, lobby, myPlayerId);
+
+        g.setFont(hudFont);
+        g.setColor(DIM);
+        centerString(g, "Minimum " + lobby.minPlayers + " players, maximum " + lobby.maxPlayers
+            + " \u2014 once the countdown ends nobody else may join",
+            GameConfig.WORLD_HEIGHT - 24);
+    }
+
+    private String lobbyHint(LobbyView lobby) {
+        if (lobby.counting) {
+            boolean full = lobby.seats.size() >= lobby.maxPlayers;
+            return full
+                ? "Lobby full (" + lobby.seats.size() + "/" + lobby.maxPlayers
+                  + ") \u2014 no more players can join"
+                : "Others can still join until it hits zero  ("
+                  + lobby.seats.size() + "/" + lobby.maxPlayers + " players)";
+        }
+        int missing = lobby.minPlayers - lobby.seats.size();
+        return missing > 0
+            ? "Need " + missing + " more player" + (missing == 1 ? "" : "s")
+              + " to start the " + (int) GameConfig.LOBBY_COUNTDOWN_SECONDS + "s countdown"
+            : "Starting shortly...";
+    }
+
+    private void drawSeats(Graphics2D g, LobbyView lobby, int myPlayerId) {
+        int slots = lobby.maxPlayers;
+        int boxW = 180;
+        int boxH = 104;
+        int gap = 18;
+        int totalW = slots * boxW + (slots - 1) * gap;
+        int x0 = (GameConfig.WORLD_WIDTH - totalW) / 2;
+        int y = 340;
+
+        for (int i = 0; i < slots; i++) {
+            int x = x0 + i * (boxW + gap);
+            LobbyView.Seat seat = i < lobby.seats.size() ? lobby.seats.get(i) : null;
+
+            if (seat == null) {
+                g.setColor(new Color(16, 18, 28, 220));
+                g.fillRect(x, y, boxW, boxH);
+                g.setColor(new Color(255, 255, 255, 45));
+                g.setStroke(new BasicStroke(2f));
+                g.drawRect(x, y, boxW, boxH);
+                g.setFont(seatFont);
+                g.setColor(MUTED);
+                centerStringIn(g, "open", x, boxW, y + boxH / 2 + 6);
+                continue;
+            }
+
+            Color color = PlayerStyle.color(seat.id);
+            g.setColor(new Color(16, 18, 28, 235));
+            g.fillRect(x, y, boxW, boxH);
+            g.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 55));
+            g.fillRect(x, y, boxW, boxH);
+            g.setColor(color);
+            g.setStroke(new BasicStroke(2f));
+            g.drawRect(x, y, boxW, boxH);
+
+            // A little avatar in the player's colour, matching their in-game body.
+            int avatarW = (int) GameConfig.PLAYER_WIDTH;
+            int avatarH = (int) GameConfig.PLAYER_HEIGHT / 2;
+            g.fillRect(x + boxW / 2 - avatarW / 2, y + 14, avatarW, avatarH);
+
+            g.setFont(seatFont);
+            g.setColor(Color.WHITE);
+            centerStringIn(g, seat.name, x, boxW, y + boxH - 32);
+
+            g.setFont(hudFont);
+            g.setColor(seat.id == myPlayerId ? color : MUTED);
+            centerStringIn(g, seat.id == myPlayerId ? "YOU" : PlayerStyle.name(seat.id),
+                x, boxW, y + boxH - 12);
+        }
+    }
+
+    // ---- Match rendering ----------------------------------------------------
+
+    private void prepare(Graphics2D g) {
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+            RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+    }
+
+    private void drawBackdrop(Graphics2D g) {
+        g.setColor(BACKGROUND);
+        g.fillRect(0, 0, GameConfig.WORLD_WIDTH, GameConfig.WORLD_HEIGHT);
         for (Platform plat : platforms) {
             g.setColor(PLATFORM);
             g.fillRect((int) plat.x, (int) plat.y, (int) plat.width, (int) plat.height);
@@ -66,8 +187,6 @@ public final class Java2DRenderer implements Renderer {
     }
 
     private void drawPlayers(Graphics2D g, StateSnapshot state) {
-        g.setFont(hudFont);
-        FontMetrics fm = g.getFontMetrics();
         for (StateSnapshot.PlayerView p : state.players) {
             if (!p.alive) {
                 continue;
@@ -86,45 +205,64 @@ public final class Java2DRenderer implements Renderer {
             int gunX = p.facing > 0 ? (int) (p.x + w) : (int) (p.x - 14);
             g.fillRect(gunX, (int) (p.y + h / 2f - 2), 14, 4);
 
-            // Damage % above the head.
+            // Damage % right above the head, nickname above that.
+            g.setFont(hudFont);
+            FontMetrics fm = g.getFontMetrics();
             String dmg = (int) p.damage + "%";
             g.drawString(dmg, cx - fm.stringWidth(dmg) / 2, (int) p.y - 8);
+
+            g.setFont(nameFont);
+            FontMetrics nfm = g.getFontMetrics();
+            g.setColor(PlayerStyle.color(p.id));
+            g.drawString(p.name, cx - nfm.stringWidth(p.name) / 2, (int) p.y - 24);
         }
     }
 
     private void drawHud(Graphics2D g, StateSnapshot state) {
         g.setFont(hudFont);
-        int x = 16;
+        int count = Math.max(1, state.players.size());
+        int margin = 16;
+        int column = (GameConfig.WORLD_WIDTH - 2 * margin) / count;
+        int i = 0;
         for (StateSnapshot.PlayerView p : state.players) {
-            g.setColor(PlayerStyle.color(p.id));
-            String line = PlayerStyle.name(p.id)
-                + "  lives:" + Math.max(0, p.lives) + "  dmg:" + (int) p.damage + "%";
-            g.drawString(line, x, 24);
-            x += 280;
+            // Columns are sized to the roster so a full four-player HUD still
+            // fits on screen.
+            g.setColor(p.alive ? PlayerStyle.color(p.id) : MUTED);
+            String line = p.alive
+                ? p.name + "  LIVES " + Math.max(0, p.lives) + "  " + (int) p.damage + "%"
+                : p.name + "  OUT";
+            g.drawString(line, margin + i * column, 24);
+            i++;
         }
-        g.setColor(new Color(220, 220, 220, 150));
-        g.drawString(
-            "P1: A/D move  W jump(x2)  F shoot     P2: Left/Right move  Up jump(x2)  L shoot     R: restart",
-            16, GameConfig.WORLD_HEIGHT - 16);
+        g.setColor(DIM);
+        g.drawString("A/D or ←/→ move    W or ↑ jump (x2)    F or L shoot    R rematch",
+            margin, GameConfig.WORLD_HEIGHT - 16);
     }
 
     private void drawGameOver(Graphics2D g, StateSnapshot state) {
         g.setColor(new Color(0, 0, 0, 160));
         g.fillRect(0, 0, GameConfig.WORLD_WIDTH, GameConfig.WORLD_HEIGHT);
 
-        String text = state.winnerId >= 0 ? PlayerStyle.name(state.winnerId) + " WINS!" : "DRAW";
+        String winner = state.nameOf(state.winnerId);
+        String text = state.winnerId >= 0 && !winner.isEmpty() ? winner + " WINS!" : "DRAW";
         g.setFont(bigFont);
-        FontMetrics fm = g.getFontMetrics();
-        g.setColor(Color.WHITE);
-        g.drawString(text,
-            (GameConfig.WORLD_WIDTH - fm.stringWidth(text)) / 2,
-            GameConfig.WORLD_HEIGHT / 2 - 8);
+        g.setColor(state.winnerId >= 0 ? PlayerStyle.color(state.winnerId) : Color.WHITE);
+        centerString(g, text, GameConfig.WORLD_HEIGHT / 2 - 8);
 
         g.setFont(hudFont);
-        FontMetrics fm2 = g.getFontMetrics();
-        String sub = "Press R to restart";
-        g.drawString(sub,
-            (GameConfig.WORLD_WIDTH - fm2.stringWidth(sub)) / 2,
-            GameConfig.WORLD_HEIGHT / 2 + 30);
+        g.setColor(Color.WHITE);
+        centerString(g, "Press R for a rematch", GameConfig.WORLD_HEIGHT / 2 + 30);
+    }
+
+    // ---- Small helpers ------------------------------------------------------
+
+    private void centerString(Graphics2D g, String text, int baselineY) {
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(text, (GameConfig.WORLD_WIDTH - fm.stringWidth(text)) / 2, baselineY);
+    }
+
+    private void centerStringIn(Graphics2D g, String text, int x, int width, int baselineY) {
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(text, x + (width - fm.stringWidth(text)) / 2, baselineY);
     }
 }

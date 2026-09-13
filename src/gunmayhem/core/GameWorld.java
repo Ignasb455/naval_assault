@@ -5,8 +5,8 @@ import java.util.List;
 
 /**
  * Owns all game state and advances the simulation one step at a time. This class
- * is deliberately free of any rendering or windowing code, so the exact same
- * logic could later be driven by an authoritative server.
+ * is deliberately free of any rendering or windowing code: the authoritative
+ * server is the only thing that drives it.
  */
 public final class GameWorld {
     private final List<Player> players = new ArrayList<>();
@@ -16,9 +16,15 @@ public final class GameWorld {
     private boolean over;
     private Player winner;
 
-    public GameWorld() {
-        buildStage();
-        spawnPlayers();
+    /** Build a match for the given roster (2-4 players, ids need not be contiguous). */
+    public GameWorld(List<PlayerSpec> roster) {
+        platforms.addAll(Stage.createPlatforms());
+        for (int slot = 0; slot < roster.size(); slot++) {
+            PlayerSpec spec = roster.get(slot);
+            float[] spawn = Stage.spawnPoint(slot);
+            players.add(new Player(spec.id(), spec.name(), PlayerStyle.color(spec.id()),
+                spawn[0], spawn[1]));
+        }
     }
 
     public List<Player> players()     { return players; }
@@ -27,15 +33,23 @@ public final class GameWorld {
     public boolean isOver()           { return over; }
     public Player winner()            { return winner; }
 
-    private void buildStage() {
-        platforms.addAll(Stage.createPlatforms());
+    /** The player holding that server slot, or null if they are not in this match. */
+    public Player playerById(int id) {
+        for (Player p : players) {
+            if (p.id == id) {
+                return p;
+            }
+        }
+        return null;
     }
 
-    private void spawnPlayers() {
-        players.add(new Player(0, PlayerStyle.name(0), PlayerStyle.color(0),
-            GameConfig.WORLD_WIDTH / 2f - 200, 360));
-        players.add(new Player(1, PlayerStyle.name(1), PlayerStyle.color(1),
-            GameConfig.WORLD_WIDTH / 2f + 170, 360));
+    /** Knock a player out for good — used when their client drops mid-match. */
+    public void eliminate(int id) {
+        Player p = playerById(id);
+        if (p != null) {
+            p.eliminate();
+        }
+        checkGameOver();
     }
 
     public void update(float dt) {
@@ -43,8 +57,8 @@ public final class GameWorld {
             return;
         }
         for (Player p : players) {
+            p.tick(dt); // cooldowns keep ticking even for eliminated players
             if (p.isAlive()) {
-                p.tick(dt);
                 updatePlayerPhysics(p, dt);
             }
         }

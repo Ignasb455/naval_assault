@@ -42,4 +42,13 @@ public final class GameConfig {
 
     // Per-second horizontal decay applied while being knocked back.
     public static final float KNOCKBACK_FRICTION = 3.5f;
+
+    // Lobby: the match starts once MIN_PLAYERS are connected and the countdown
+    // expires; late joiners are welcome until then, up to MAX_PLAYERS.
+    public static final int MIN_PLAYERS = 2;
+    public static final int MAX_PLAYERS = 4;
+    public static final float LOBBY_COUNTDOWN_SECONDS = 15f;
+
+    // Nicknames are player-supplied, so they are length-capped before display.
+    public static final int MAX_NAME_LENGTH = 12;
 }
