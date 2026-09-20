@@ -49,6 +49,17 @@ public final class GameConfig {
     public static final int MAX_PLAYERS = 4;
     public static final float LOBBY_COUNTDOWN_SECONDS = 15f;
 
+    // Loot crates: one falls every CRATE_INTERVAL seconds, lands on the first
+    // platform below it and waits to be picked up.
+    public static final float CRATE_INTERVAL = 12f;
+    public static final float CRATE_SIZE = 28f;
+    public static final float CRATE_FALL_SPEED = 260f;
+
+    // Drop effects. They last until the player loses a life.
+    public static final float SPEED_BOOST_MULTIPLIER = 1.6f;
+    public static final int SHOTGUN_PELLETS = 3;
+    public static final float SHOTGUN_SPREAD = 16f; // vertical gap between pellets
+
     // Nicknames are player-supplied, so they are length-capped before display.
     public static final int MAX_NAME_LENGTH = 12;
 }

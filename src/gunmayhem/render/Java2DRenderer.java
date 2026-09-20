@@ -28,6 +28,16 @@ public final class Java2DRenderer implements Renderer {
     private static final Color MUTED = new Color(150, 156, 180);
     private static final Color DIM = new Color(220, 220, 220, 150);
 
+    // Crate colours by rarity, so a rare drop is worth running for.
+    private static final Color RARITY_COMMON = new Color(170, 176, 190);
+    private static final Color RARITY_UNCOMMON = new Color(90, 170, 255);
+    private static final Color RARITY_RARE = new Color(255, 195, 60);
+
+    // Power-up markers drawn on the body.
+    private static final Color TRAIL = new Color(255, 255, 255);
+    private static final Color CLOUD = new Color(215, 222, 240, 190);
+    private static final Color SHIELD = new Color(90, 180, 255);
+
     private final Font hudFont = new Font("Monospaced", Font.BOLD, 13);
     private final Font nameFont = new Font("SansSerif", Font.BOLD, 13);
     private final Font titleFont = new Font("SansSerif", Font.BOLD, 40);
@@ -41,6 +51,7 @@ public final class Java2DRenderer implements Renderer {
     public void draw(Graphics2D g, StateSnapshot state) {
         prepare(g);
         drawBackdrop(g);
+        drawCrates(g, state);
         drawBullets(g, state);
         drawPlayers(g, state);
         drawHud(g, state);
@@ -186,6 +197,33 @@ public final class Java2DRenderer implements Renderer {
         }
     }
 
+    /** Loot crates: a coloured box marked G for a gun or P for a power-up. */
+    private void drawCrates(Graphics2D g, StateSnapshot state) {
+        int size = (int) GameConfig.CRATE_SIZE;
+        for (StateSnapshot.CrateView c : state.crates) {
+            Color color = rarityColor(c.rarity);
+            g.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), 70));
+            g.fillRect((int) c.x, (int) c.y, size, size);
+            g.setColor(color);
+            g.setStroke(new BasicStroke(2f));
+            g.drawRect((int) c.x, (int) c.y, size, size);
+
+            g.setFont(hudFont);
+            FontMetrics fm = g.getFontMetrics();
+            String mark = "gun".equals(c.kind) ? "G" : "P";
+            g.drawString(mark, (int) c.x + size / 2 - fm.stringWidth(mark) / 2,
+                (int) c.y + size / 2 + 5);
+        }
+    }
+
+    private Color rarityColor(String rarity) {
+        return switch (rarity) {
+            case "rare" -> RARITY_RARE;
+            case "uncommon" -> RARITY_UNCOMMON;
+            default -> RARITY_COMMON;
+        };
+    }
+
     private void drawPlayers(Graphics2D g, StateSnapshot state) {
         for (StateSnapshot.PlayerView p : state.players) {
             if (!p.alive) {
@@ -195,27 +233,115 @@ public final class Java2DRenderer implements Renderer {
             int h = (int) GameConfig.PLAYER_HEIGHT;
             int cx = (int) (p.x + w / 2f);
 
+            // Effects go under the body so the player stays readable.
+            if (p.boosted && p.moving) {
+                drawSpeedTrail(g, p, w, h);
+            }
+            if (p.tripleJump) {
+                drawJumpCloud(g, p, w, h);
+            }
+
             g.setColor(PlayerStyle.color(p.id));
             g.fillRect((int) p.x, (int) p.y, w, h);
             g.setColor(Color.WHITE);
             g.setStroke(new BasicStroke(2f));
             g.drawRect((int) p.x, (int) p.y, w, h);
 
-            // Gun barrel showing facing direction.
-            int gunX = p.facing > 0 ? (int) (p.x + w) : (int) (p.x - 14);
-            g.fillRect(gunX, (int) (p.y + h / 2f - 2), 14, 4);
+            drawWeapon(g, p, w, h);
+
+            if (p.shielded) {
+                drawShieldRing(g, p, w, h);
+            }
 
             // Damage % right above the head, nickname above that.
             g.setFont(hudFont);
             FontMetrics fm = g.getFontMetrics();
             String dmg = (int) p.damage + "%";
-            g.drawString(dmg, cx - fm.stringWidth(dmg) / 2, (int) p.y - 8);
+            // Lift the label when the shield ring would otherwise cross it.
+            int dmgY = (int) p.y - (p.shielded ? 18 : 8);
+            g.drawString(dmg, cx - fm.stringWidth(dmg) / 2, dmgY);
 
             g.setFont(nameFont);
             FontMetrics nfm = g.getFontMetrics();
             g.setColor(PlayerStyle.color(p.id));
-            g.drawString(p.name, cx - nfm.stringWidth(p.name) / 2, (int) p.y - 24);
+            g.drawString(p.name, cx - nfm.stringWidth(p.name) / 2,
+                dmgY - 16);
         }
+    }
+
+    // ---- Held weapon and power-up markers -----------------------------------
+
+    /** The gun in the player's hands, shaped after whatever they picked up. */
+    private void drawWeapon(Graphics2D g, StateSnapshot.PlayerView p, int w, int h) {
+        g.setColor(Color.WHITE);
+        int dir = p.facing > 0 ? 1 : -1;
+        int handX = p.facing > 0 ? (int) (p.x + w) : (int) p.x;
+        int handY = (int) (p.y + h / 2f);
+
+        switch (p.weapon) {
+            case "Semi-auto" -> {
+                barrel(g, handX, handY - 2, 18, 4, dir);
+                barrel(g, handX + dir * 2, handY + 2, 5, 6, dir); // grip
+            }
+            case "SMG" -> {
+                barrel(g, handX, handY - 3, 24, 5, dir);
+                barrel(g, handX + dir * 5, handY + 2, 6, 9, dir); // magazine
+            }
+            case "Shotgun" -> {
+                barrel(g, handX, handY - 8, 30, 3, dir);
+                barrel(g, handX, handY - 1, 30, 3, dir); // second barrel, clear gap
+                barrel(g, handX + dir * 3, handY + 2, 7, 5, dir); // stock
+            }
+            default -> barrel(g, handX, handY - 2, 12, 4, dir); // Pistol
+        }
+    }
+
+    /** Rectangle growing away from the body, so it mirrors with the facing. */
+    private void barrel(Graphics2D g, int x, int y, int length, int thickness, int dir) {
+        g.fillRect(dir > 0 ? x : x - length, y, length, thickness);
+    }
+
+    /** Speed boost: dashes left behind the runner. */
+    private void drawSpeedTrail(Graphics2D g, StateSnapshot.PlayerView p, int w, int h) {
+        int behind = p.facing > 0 ? (int) p.x : (int) (p.x + w);
+        int dir = p.facing > 0 ? -1 : 1;
+        g.setStroke(new BasicStroke(2f));
+        for (int i = 0; i < 3; i++) {
+            int x = behind + dir * (6 + i * 12);
+            int alpha = 190 - i * 55;
+            g.setColor(new Color(TRAIL.getRed(), TRAIL.getGreen(), TRAIL.getBlue(), alpha));
+            g.drawLine(x, (int) (p.y + h * 0.35f), x + dir * 8, (int) (p.y + h * 0.35f));
+            g.drawLine(x, (int) (p.y + h * 0.7f), x + dir * 8, (int) (p.y + h * 0.7f));
+        }
+    }
+
+    /** Triple jump: a little cloud puffing under the feet. */
+    private void drawJumpCloud(Graphics2D g, StateSnapshot.PlayerView p, int w, int h) {
+        g.setColor(CLOUD);
+        int baseY = (int) (p.y + h - 4);
+        int cx = (int) (p.x + w / 2f);
+        g.fillOval(cx - 20, baseY, 18, 12);
+        g.fillOval(cx - 9, baseY - 4, 20, 14);
+        g.fillOval(cx + 4, baseY, 18, 12);
+    }
+
+    /** Shield: a blue zig-zag ring that vanishes with the first hit taken. */
+    private void drawShieldRing(Graphics2D g, StateSnapshot.PlayerView p, int w, int h) {
+        int cx = (int) (p.x + w / 2f);
+        int cy = (int) (p.y + h / 2f);
+        int points = 16;
+        double outer = Math.max(w, h) * 0.68;
+        int[] xs = new int[points];
+        int[] ys = new int[points];
+        for (int i = 0; i < points; i++) {
+            double angle = 2 * Math.PI * i / points;
+            double r = (i % 2 == 0) ? outer : outer * 0.82;
+            xs[i] = cx + (int) (Math.cos(angle) * r);
+            ys[i] = cy + (int) (Math.sin(angle) * r);
+        }
+        g.setColor(SHIELD);
+        g.setStroke(new BasicStroke(2f));
+        g.drawPolygon(xs, ys, points);
     }
 
     private void drawHud(Graphics2D g, StateSnapshot state) {
@@ -227,16 +353,36 @@ public final class Java2DRenderer implements Renderer {
         for (StateSnapshot.PlayerView p : state.players) {
             // Columns are sized to the roster so a full four-player HUD still
             // fits on screen.
+            int x = margin + i * column;
             g.setColor(p.alive ? PlayerStyle.color(p.id) : MUTED);
-            String line = p.alive
+            g.drawString(p.alive
                 ? p.name + "  LIVES " + Math.max(0, p.lives) + "  " + (int) p.damage + "%"
-                : p.name + "  OUT";
-            g.drawString(line, margin + i * column, 24);
+                : p.name + "  OUT", x, 24);
+            if (p.alive) {
+                // Second line keeps the weapon readable even with four long nicknames.
+                g.setColor(DIM);
+                g.drawString(p.weapon + powerTags(p), x, 40);
+            }
             i++;
         }
         g.setColor(DIM);
         g.drawString("A/D or ←/→ move    W or ↑ jump (x2)    F or L shoot    R rematch",
             margin, GameConfig.WORLD_HEIGHT - 16);
+    }
+
+    /** Short markers for the power-ups a player is carrying. */
+    private String powerTags(StateSnapshot.PlayerView p) {
+        StringBuilder sb = new StringBuilder();
+        if (p.boosted) {
+            sb.append("  +SPD");
+        }
+        if (p.tripleJump) {
+            sb.append("  +JMP");
+        }
+        if (p.shielded) {
+            sb.append("  +SHLD");
+        }
+        return sb.toString();
     }
 
     private void drawGameOver(Graphics2D g, StateSnapshot state) {

@@ -1,6 +1,9 @@
 package gunmayhem.core;
 
+import gunmayhem.core.drops.Pistol;
+import gunmayhem.core.drops.Weapon;
 import java.awt.Color;
+import java.util.List;
 
 /**
  * A controllable character. Holds physics state (position/velocity), the
@@ -26,6 +29,12 @@ public final class Player {
 
     public boolean onGround;
     public int jumpsLeft = GameConfig.MAX_JUMPS;
+
+    // Loot-crate state. Everything here resets when the player loses a life.
+    public Weapon weapon = new Pistol();
+    public float speedMultiplier = 1f;
+    public int maxJumps = GameConfig.MAX_JUMPS;
+    public boolean shielded;
 
     // Input intent for the current frame, set by the server from the owning
     // client's input messages.
@@ -62,24 +71,24 @@ public final class Player {
         onGround = false;
     }
 
-    /** Fire a bullet if the cooldown has elapsed. Returns the new bullet or null. */
-    public Bullet shoot() {
+    /**
+     * Fire the currently held weapon if its cooldown has elapsed. Returns the
+     * bullets it produced — a pistol gives one, a shotgun a handful.
+     */
+    public List<Bullet> shoot() {
         if (!isAlive() || shootTimer > 0f) {
-            return null;
+            return List.of();
         }
-        shootTimer = GameConfig.SHOOT_COOLDOWN;
-
-        Aabb b = bounds();
-        float muzzleX = facing > 0
-            ? b.right() + 2f
-            : b.left() - GameConfig.BULLET_WIDTH - 2f;
-        float muzzleY = b.centerY() - GameConfig.BULLET_HEIGHT / 2f;
-
-        return new Bullet(muzzleX, muzzleY, GameConfig.BULLET_SPEED * facing, id);
+        shootTimer = weapon.cooldown();
+        return weapon.fire(this);
     }
 
     /** Apply knockback from a hit and bump the damage meter. */
     public void takeHit(int fromDirectionX) {
+        if (shielded) {
+            shielded = false; // the shield swallows exactly one hit
+            return;
+        }
         float impulse = GameConfig.KNOCKBACK_BASE + damage * GameConfig.KNOCKBACK_PER_DAMAGE;
         vx = fromDirectionX * impulse;
         vy = -GameConfig.KNOCKBACK_UP;
@@ -120,7 +129,13 @@ public final class Player {
         vy = 0f;
         x = spawnX;
         y = spawnY;
-        jumpsLeft = GameConfig.MAX_JUMPS;
         onGround = false;
+
+        // Crate loot is lost on death.
+        weapon = new Pistol();
+        speedMultiplier = 1f;
+        maxJumps = GameConfig.MAX_JUMPS;
+        shielded = false;
+        jumpsLeft = maxJumps;
     }
 }
