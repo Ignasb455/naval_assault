@@ -1,7 +1,9 @@
 package gunmayhem.net;
 
 import gunmayhem.core.Bullet;
+import gunmayhem.core.GameConfig;
 import gunmayhem.core.GameWorld;
+import gunmayhem.core.LootCrate;
 import gunmayhem.core.Player;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -24,9 +26,18 @@ public final class StateSnapshot {
         public final float damage;
         public final int lives;
         public final boolean alive;
+        public final String weapon;
+
+        // Active crate effects, so the client can draw them on the body.
+        public final boolean boosted;
+        public final boolean tripleJump;
+        public final boolean shielded;
+        public final boolean moving;
 
         public PlayerView(int id, String name, float x, float y, int facing,
-                          float damage, int lives, boolean alive) {
+                          float damage, int lives, boolean alive, String weapon,
+                          boolean boosted, boolean tripleJump, boolean shielded,
+                          boolean moving) {
             this.id = id;
             this.name = name;
             this.x = x;
@@ -35,6 +46,26 @@ public final class StateSnapshot {
             this.damage = damage;
             this.lives = lives;
             this.alive = alive;
+            this.weapon = weapon;
+            this.boosted = boosted;
+            this.tripleJump = tripleJump;
+            this.shielded = shielded;
+            this.moving = moving;
+        }
+    }
+
+    /** A loot crate as the client needs to draw it. */
+    public static final class CrateView {
+        public final float x;
+        public final float y;
+        public final String kind;   // "gun" or "power"
+        public final String rarity; // "common" / "uncommon" / "rare"
+
+        public CrateView(float x, float y, String kind, String rarity) {
+            this.x = x;
+            this.y = y;
+            this.kind = kind;
+            this.rarity = rarity;
         }
     }
 
@@ -50,12 +81,15 @@ public final class StateSnapshot {
 
     public final List<PlayerView> players;
     public final List<BulletView> bullets;
+    public final List<CrateView> crates;
     public final boolean over;
     public final int winnerId; // -1 when there is no winner yet / a draw
 
-    public StateSnapshot(List<PlayerView> players, List<BulletView> bullets, boolean over, int winnerId) {
+    public StateSnapshot(List<PlayerView> players, List<BulletView> bullets,
+                         List<CrateView> crates, boolean over, int winnerId) {
         this.players = players;
         this.bullets = bullets;
+        this.crates = crates;
         this.over = over;
         this.winnerId = winnerId;
     }
@@ -64,14 +98,23 @@ public final class StateSnapshot {
     public static StateSnapshot fromWorld(GameWorld world) {
         List<PlayerView> ps = new ArrayList<>();
         for (Player p : world.players()) {
-            ps.add(new PlayerView(p.id, p.name, p.x, p.y, p.facing, p.damage, p.lives, p.isAlive()));
+            ps.add(new PlayerView(p.id, p.name, p.x, p.y, p.facing, p.damage, p.lives,
+                p.isAlive(), p.weapon.name(),
+                p.speedMultiplier > 1f,
+                p.maxJumps > GameConfig.MAX_JUMPS,
+                p.shielded,
+                Math.abs(p.vx) > 1f));
         }
         List<BulletView> bs = new ArrayList<>();
         for (Bullet b : world.bullets()) {
             bs.add(new BulletView(b.x, b.y));
         }
+        List<CrateView> cs = new ArrayList<>();
+        for (LootCrate c : world.crates()) {
+            cs.add(new CrateView(c.x, c.y, c.drop.kind(), c.drop.rarity().wireName()));
+        }
         int winner = world.winner() != null ? world.winner().id : -1;
-        return new StateSnapshot(ps, bs, world.isOver(), winner);
+        return new StateSnapshot(ps, bs, cs, world.isOver(), winner);
     }
 
     /** Nickname of the player holding that id, or a blank string if unknown. */
@@ -103,6 +146,11 @@ public final class StateSnapshot {
             m.put("damage", p.damage);
             m.put("lives", p.lives);
             m.put("alive", p.alive);
+            m.put("weapon", p.weapon);
+            m.put("boosted", p.boosted);
+            m.put("triple", p.tripleJump);
+            m.put("shield", p.shielded);
+            m.put("moving", p.moving);
             ps.add(m);
         }
         root.put("players", ps);
@@ -115,6 +163,17 @@ public final class StateSnapshot {
             bs.add(m);
         }
         root.put("bullets", bs);
+
+        List<Object> cs = new ArrayList<>();
+        for (CrateView c : crates) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("x", c.x);
+            m.put("y", c.y);
+            m.put("kind", c.kind);
+            m.put("rarity", c.rarity);
+            cs.add(m);
+        }
+        root.put("crates", cs);
 
         return Json.write(root);
     }
@@ -136,7 +195,12 @@ public final class StateSnapshot {
                 asInt(m.get("facing"), 1),
                 asFloat(m.get("damage")),
                 asInt(m.get("lives"), 0),
-                asBool(m.get("alive"))));
+                asBool(m.get("alive")),
+                asString(m.get("weapon")),
+                asBool(m.get("boosted")),
+                asBool(m.get("triple")),
+                asBool(m.get("shield")),
+                asBool(m.get("moving"))));
         }
 
         List<BulletView> bullets = new ArrayList<>();
@@ -145,7 +209,17 @@ public final class StateSnapshot {
             bullets.add(new BulletView(asFloat(m.get("x")), asFloat(m.get("y"))));
         }
 
-        return new StateSnapshot(players, bullets, over, winnerId);
+        List<CrateView> crates = new ArrayList<>();
+        Object rawCrates = root.get("crates");
+        if (rawCrates instanceof List<?> list) {
+            for (Object o : list) {
+                Map<String, Object> m = (Map<String, Object>) o;
+                crates.add(new CrateView(asFloat(m.get("x")), asFloat(m.get("y")),
+                    asString(m.get("kind")), asString(m.get("rarity"))));
+            }
+        }
+
+        return new StateSnapshot(players, bullets, crates, over, winnerId);
     }
 
     private static String asString(Object o) {

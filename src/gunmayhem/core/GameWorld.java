@@ -1,7 +1,12 @@
 package gunmayhem.core;
 
+import gunmayhem.core.drops.Drop;
+import gunmayhem.core.drops.DropFactory;
+import gunmayhem.core.drops.GunDropFactory;
+import gunmayhem.core.drops.PowerUpDropFactory;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 /**
  * Owns all game state and advances the simulation one step at a time. This class
@@ -12,6 +17,10 @@ public final class GameWorld {
     private final List<Player> players = new ArrayList<>();
     private final List<Bullet> bullets = new ArrayList<>();
     private final List<Platform> platforms = new ArrayList<>();
+    private final List<LootCrate> crates = new ArrayList<>();
+
+    private final Random rng = new Random();
+    private float crateTimer = GameConfig.CRATE_INTERVAL;
 
     private boolean over;
     private Player winner;
@@ -30,6 +39,7 @@ public final class GameWorld {
     public List<Player> players()     { return players; }
     public List<Bullet> bullets()     { return bullets; }
     public List<Platform> platforms() { return platforms; }
+    public List<LootCrate> crates()   { return crates; }
     public boolean isOver()           { return over; }
     public Player winner()            { return winner; }
 
@@ -63,8 +73,81 @@ public final class GameWorld {
             }
         }
         updateBullets(dt);
+        updateCrates(dt);
         checkOutOfBounds();
         checkGameOver();
+    }
+
+    // ---- Loot crates --------------------------------------------------------
+
+    /**
+     * Drop a crate every so often, let the ones already falling settle on a
+     * platform, and hand their contents to whoever walks into them.
+     */
+    private void updateCrates(float dt) {
+        crateTimer -= dt;
+        if (crateTimer <= 0f) {
+            crateTimer = GameConfig.CRATE_INTERVAL;
+            spawnCrate();
+        }
+        for (LootCrate crate : crates) {
+            crate.update(dt);
+            landCrate(crate);
+            collectCrate(crate);
+        }
+        crates.removeIf(c -> !c.alive);
+    }
+
+    /**
+     * The abstract factory in use: pick a family (guns or power-ups) once, then
+     * ask it for a rarity. The world never names a concrete drop class.
+     */
+    private void spawnCrate() {
+        DropFactory factory = rng.nextBoolean()
+            ? new GunDropFactory()
+            : new PowerUpDropFactory();
+
+        int roll = rng.nextInt(100);
+        Drop drop = roll < 60 ? factory.createCommon()
+                  : roll < 90 ? factory.createUncommon()
+                  :             factory.createRare();
+
+        float x = 60f + rng.nextFloat() * (GameConfig.WORLD_WIDTH - 120f);
+        crates.add(new LootCrate(drop, x, -GameConfig.CRATE_SIZE));
+    }
+
+    /** Stop a falling crate on the first platform top it crosses. */
+    private void landCrate(LootCrate crate) {
+        if (crate.landed) {
+            return;
+        }
+        Aabb box = crate.bounds();
+        for (Platform plat : platforms) {
+            boolean horizontallyOver = box.right() > plat.x
+                && box.left() < plat.x + plat.width;
+            if (horizontallyOver && box.bottom() >= plat.y && box.top() < plat.y) {
+                crate.y = plat.y - GameConfig.CRATE_SIZE;
+                crate.vy = 0f;
+                crate.landed = true;
+                return;
+            }
+        }
+        if (crate.y > GameConfig.WORLD_HEIGHT + GameConfig.DEATH_MARGIN) {
+            crate.alive = false; // missed every platform
+        }
+    }
+
+    private void collectCrate(LootCrate crate) {
+        if (!crate.alive) {
+            return;
+        }
+        for (Player p : players) {
+            if (p.isAlive() && crate.bounds().intersects(p.bounds())) {
+                crate.drop.applyTo(p);
+                crate.alive = false;
+                return;
+            }
+        }
     }
 
     private void updatePlayerPhysics(Player p, float dt) {
@@ -73,11 +156,12 @@ public final class GameWorld {
         // Horizontal: direct control at normal speeds; while being knocked back
         // (moving faster than run speed) let the impulse decay with friction, so
         // hits actually throw the player Gun-Mayhem style.
-        if (Math.abs(p.vx) <= GameConfig.MOVE_SPEED + 1f) {
-            p.vx = inputDir * GameConfig.MOVE_SPEED;
+        float runSpeed = GameConfig.MOVE_SPEED * p.speedMultiplier;
+        if (Math.abs(p.vx) <= runSpeed + 1f) {
+            p.vx = inputDir * runSpeed;
         } else {
             p.vx -= p.vx * (GameConfig.KNOCKBACK_FRICTION * dt);
-            p.vx += inputDir * GameConfig.MOVE_SPEED * 0.15f * dt; // slight air steering
+            p.vx += inputDir * runSpeed * 0.15f * dt; // slight air steering
         }
 
         // Gravity.
@@ -111,7 +195,7 @@ public final class GameWorld {
                 p.y = top - GameConfig.PLAYER_HEIGHT;
                 p.vy = 0;
                 p.onGround = true;
-                p.jumpsLeft = GameConfig.MAX_JUMPS;
+                p.jumpsLeft = p.maxJumps;
                 break;
             }
         }
@@ -165,9 +249,8 @@ public final class GameWorld {
         }
     }
 
-    public void spawnBullet(Bullet bullet) {
-        if (bullet != null) {
-            bullets.add(bullet);
-        }
+    /** Add the bullets a weapon just produced (a shotgun gives several). */
+    public void spawnBullets(List<Bullet> fired) {
+        bullets.addAll(fired);
     }
 }

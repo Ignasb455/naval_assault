@@ -301,7 +301,7 @@ public final class GameServer {
             }
             case "shoot" -> {
                 if (!world.isOver()) {
-                    world.spawnBullet(player.shoot());
+                    world.spawnBullets(player.shoot());
                 }
             }
             case "restart" -> {
