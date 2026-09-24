@@ -1,5 +1,6 @@
 package gunmayhem.core;
 
+import gunmayhem.core.audio.Sound;
 import gunmayhem.core.drops.Drop;
 import gunmayhem.core.drops.DropFactory;
 import gunmayhem.core.drops.GunDropFactory;
@@ -18,6 +19,7 @@ public final class GameWorld {
     private final List<Bullet> bullets = new ArrayList<>();
     private final List<Platform> platforms = new ArrayList<>();
     private final List<LootCrate> crates = new ArrayList<>();
+    private final List<Sound> soundEvents = new ArrayList<>();
 
     private final Random rng = new Random();
     private float crateTimer = GameConfig.CRATE_INTERVAL;
@@ -252,5 +254,26 @@ public final class GameWorld {
     /** Add the bullets a weapon just produced (a shotgun gives several). */
     public void spawnBullets(List<Bullet> fired) {
         bullets.addAll(fired);
+    }
+
+    /** Queue a sound for every client to play once. */
+    public void addSound(Sound sound) {
+        soundEvents.add(sound);
+    }
+
+    /**
+     * Take the sounds queued since the last call and clear them. Draining is
+     * the point: a sound must ride exactly one snapshot, otherwise the client
+     * would replay it on every frame until something else happened.
+     */
+    public List<Sound> drainSounds() {
+        if (soundEvents.isEmpty()) {
+            return List.of();
+        }
+
+        List<Sound> drained = List.copyOf(soundEvents);
+        soundEvents.clear();
+
+        return drained;
     }
 }

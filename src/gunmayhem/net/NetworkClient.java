@@ -1,5 +1,7 @@
 package gunmayhem.net;
 
+import gunmayhem.core.audio.AudioManager;
+import gunmayhem.core.audio.Sound;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -86,8 +88,12 @@ public final class NetworkClient {
                     inMatch = false;
                 }
                 case "state" -> {
-                    latest = StateSnapshot.fromJson(line);
+                    StateSnapshot snapshot = StateSnapshot.fromJson(line);
+                    latest = snapshot;
                     inMatch = true;
+                    for (Sound sound : snapshot.sounds) {
+                        AudioManager.getInstance().playSound(sound);
+                    }
                 }
                 case "rejected" -> {
                     rejectionMessage = msg.get("message") instanceof String s

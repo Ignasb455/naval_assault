@@ -1,9 +1,11 @@
 package gunmayhem.net;
 
+import gunmayhem.core.Bullet;
 import gunmayhem.core.GameConfig;
 import gunmayhem.core.GameWorld;
 import gunmayhem.core.Player;
 import gunmayhem.core.PlayerSpec;
+import gunmayhem.core.audio.Sound;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -301,7 +303,12 @@ public final class GameServer {
             }
             case "shoot" -> {
                 if (!world.isOver()) {
-                    world.spawnBullets(player.shoot());
+                    // An empty list means no shot, so no sound.
+                    List<Bullet> fired = player.shoot();
+                    if (!fired.isEmpty()) {
+                        world.spawnBullets(fired);
+                        world.addSound(Sound.GUNSHOT_GLOCK_18);
+                    }
                 }
             }
             case "restart" -> {
