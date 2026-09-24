@@ -22,6 +22,7 @@ public final class GameConfig {
     public static final float PLAYER_WIDTH = 34f;
     public static final float PLAYER_HEIGHT = 46f;
     public static final int START_LIVES = 3;
+    public static final float TIME_LIMIT_SECONDS = 180f;
 
     // Shooting.
     public static final float BULLET_SPEED = 900f;

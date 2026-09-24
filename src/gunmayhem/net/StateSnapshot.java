@@ -26,6 +26,7 @@ public final class StateSnapshot {
         public final int facing;
         public final float damage;
         public final int lives;
+        public final int kills;
         public final boolean alive;
         public final String weapon;
 
@@ -39,6 +40,14 @@ public final class StateSnapshot {
                           float damage, int lives, boolean alive, String weapon,
                           boolean boosted, boolean tripleJump, boolean shielded,
                           boolean moving) {
+            this(id, name, x, y, facing, damage, lives, 0, alive, weapon,
+                boosted, tripleJump, shielded, moving);
+        }
+
+        public PlayerView(int id, String name, float x, float y, int facing,
+                          float damage, int lives, int kills, boolean alive, String weapon,
+                          boolean boosted, boolean tripleJump, boolean shielded,
+                          boolean moving) {
             this.id = id;
             this.name = name;
             this.x = x;
@@ -46,6 +55,7 @@ public final class StateSnapshot {
             this.facing = facing;
             this.damage = damage;
             this.lives = lives;
+            this.kills = kills;
             this.alive = alive;
             this.weapon = weapon;
             this.boosted = boosted;
@@ -102,7 +112,7 @@ public final class StateSnapshot {
     public static StateSnapshot fromWorld(GameWorld world) {
         List<PlayerView> ps = new ArrayList<>();
         for (Player p : world.players()) {
-            ps.add(new PlayerView(p.id, p.name, p.x, p.y, p.facing, p.damage, p.lives,
+            ps.add(new PlayerView(p.id, p.name, p.x, p.y, p.facing, p.damage, p.lives, p.kills,
                 p.isAlive(), p.weapon.name(),
                 p.speedMultiplier > 1f,
                 p.maxJumps > GameConfig.MAX_JUMPS,
@@ -150,6 +160,7 @@ public final class StateSnapshot {
             m.put("facing", p.facing);
             m.put("damage", p.damage);
             m.put("lives", p.lives);
+            m.put("kills", p.kills);
             m.put("alive", p.alive);
             m.put("weapon", p.weapon);
             m.put("boosted", p.boosted);
@@ -208,6 +219,7 @@ public final class StateSnapshot {
                 asInt(m.get("facing"), 1),
                 asFloat(m.get("damage")),
                 asInt(m.get("lives"), 0),
+                asInt(m.get("kills"), 0),
                 asBool(m.get("alive")),
                 asString(m.get("weapon")),
                 asBool(m.get("boosted")),
