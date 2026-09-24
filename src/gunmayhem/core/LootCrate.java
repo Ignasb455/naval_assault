@@ -1,6 +1,7 @@
 package gunmayhem.core;
 
 import gunmayhem.core.drops.Drop;
+import gunmayhem.core.stages.Platform;
 
 /**
  * A crate that falls from the sky, settles on the first platform it meets and
@@ -14,6 +15,9 @@ public final class LootCrate {
     public float vy;
     public boolean landed;
     public boolean alive = true;
+
+    // The platform it settled on, so a moving one takes the crate with it.
+    public Platform ground;
 
     public LootCrate(Drop drop, float x, float y) {
         this.drop = drop;

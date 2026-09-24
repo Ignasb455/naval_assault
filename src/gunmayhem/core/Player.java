@@ -2,6 +2,7 @@ package gunmayhem.core;
 
 import gunmayhem.core.drops.Pistol;
 import gunmayhem.core.drops.Weapon;
+import gunmayhem.core.stages.Platform;
 import java.awt.Color;
 import java.util.List;
 
@@ -29,6 +30,10 @@ public final class Player {
 
     public boolean onGround;
     public int jumpsLeft = GameConfig.MAX_JUMPS;
+
+    // The platform currently underfoot, or null in the air. It decides how much
+    // grip the surface gives and carries the player when it moves.
+    public Platform ground;
 
     // Loot-crate state. Everything here resets when the player loses a life.
     public Weapon weapon = new Pistol();
@@ -69,6 +74,7 @@ public final class Player {
         vy = -GameConfig.JUMP_SPEED;
         jumpsLeft--;
         onGround = false;
+        ground = null;
     }
 
     /**
@@ -130,6 +136,7 @@ public final class Player {
         x = spawnX;
         y = spawnY;
         onGround = false;
+        ground = null;
 
         // Crate loot is lost on death.
         weapon = new Pistol();

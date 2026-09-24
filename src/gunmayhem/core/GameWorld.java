@@ -4,6 +4,8 @@ import gunmayhem.core.drops.Drop;
 import gunmayhem.core.drops.DropFactory;
 import gunmayhem.core.drops.GunDropFactory;
 import gunmayhem.core.drops.PowerUpDropFactory;
+import gunmayhem.core.stages.Platform;
+import gunmayhem.core.stages.Stage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -26,11 +28,11 @@ public final class GameWorld {
     private Player winner;
 
     /** Build a match for the given roster (2-4 players, ids need not be contiguous). */
-    public GameWorld(List<PlayerSpec> roster) {
-        platforms.addAll(Stage.createPlatforms());
+    public GameWorld(List<PlayerSpec> roster, Stage stage) {
+        platforms.addAll(stage.createPlatforms());
         for (int slot = 0; slot < roster.size(); slot++) {
             PlayerSpec spec = roster.get(slot);
-            float[] spawn = Stage.spawnPoint(slot);
+            float[] spawn = stage.spawnPoint(slot);
             players.add(new Player(spec.id(), spec.name(), PlayerStyle.color(spec.id()),
                 spawn[0], spawn[1]));
         }
@@ -66,6 +68,11 @@ public final class GameWorld {
         if (over) {
             return;
         }
+        // Platforms move first: everything below reads their current position,
+        // and riders are carried by the distance covered in this step.
+        for (Platform plat : platforms) {
+            plat.update(dt);
+        }
         for (Player p : players) {
             p.tick(dt); // cooldowns keep ticking even for eliminated players
             if (p.isAlive()) {
@@ -92,6 +99,10 @@ public final class GameWorld {
         }
         for (LootCrate crate : crates) {
             crate.update(dt);
+            if (crate.landed && crate.ground != null) {
+                crate.x += crate.ground.deltaX();
+                crate.y += crate.ground.deltaY();
+            }
             landCrate(crate);
             collectCrate(crate);
         }
@@ -123,12 +134,13 @@ public final class GameWorld {
         }
         Aabb box = crate.bounds();
         for (Platform plat : platforms) {
-            boolean horizontallyOver = box.right() > plat.x
-                && box.left() < plat.x + plat.width;
-            if (horizontallyOver && box.bottom() >= plat.y && box.top() < plat.y) {
-                crate.y = plat.y - GameConfig.CRATE_SIZE;
+            boolean horizontallyOver = box.right() > plat.x()
+                && box.left() < plat.x() + plat.width();
+            if (horizontallyOver && box.bottom() >= plat.y() && box.top() < plat.y()) {
+                crate.y = plat.y() - GameConfig.CRATE_SIZE;
                 crate.vy = 0f;
                 crate.landed = true;
+                crate.ground = plat;
                 return;
             }
         }
@@ -151,6 +163,15 @@ public final class GameWorld {
     }
 
     private void updatePlayerPhysics(Player p, float dt) {
+        // Ride the platform underfoot before anything else: it has already moved
+        // this frame, and prevBottom below must be measured from where the feet
+        // ended up. Skip this and a rising platform leaves the player behind,
+        // fails the one-way landing test and passes straight through them.
+        if (p.ground != null) {
+            p.x += p.ground.deltaX();
+            p.y += p.ground.deltaY();
+        }
+
         int inputDir = (p.wantRight ? 1 : 0) - (p.wantLeft ? 1 : 0);
 
         // Horizontal: direct control at normal speeds; while being knocked back
@@ -158,7 +179,12 @@ public final class GameWorld {
         // hits actually throw the player Gun-Mayhem style.
         float runSpeed = GameConfig.MOVE_SPEED * p.speedMultiplier;
         if (Math.abs(p.vx) <= runSpeed + 1f) {
-            p.vx = inputDir * runSpeed;
+            // Approach the intended speed at the rate the surface allows. Solid
+            // ground clamps to 1 and so is instant, exactly as before; ice takes
+            // a moment to get going and a moment to stop.
+            float target = inputDir * runSpeed;
+            float grip = p.ground != null ? p.ground.grip() : GameConfig.AIR_GRIP;
+            p.vx += (target - p.vx) * Math.min(1f, grip * dt);
         } else {
             p.vx -= p.vx * (GameConfig.KNOCKBACK_FRICTION * dt);
             p.vx += inputDir * runSpeed * 0.15f * dt; // slight air steering
@@ -183,19 +209,26 @@ public final class GameWorld {
 
     private void resolvePlatformLanding(Player p, float prevBottom) {
         p.onGround = false;
+        p.ground = null;
         if (p.vy < 0) {
             return; // moving up: pass through one-way platforms
         }
         Aabb body = p.bounds();
         for (Platform plat : platforms) {
-            float top = plat.y;
-            boolean horizontallyOver = body.right() > plat.x && body.left() < plat.x + plat.width;
+            float top = plat.y();
+            boolean horizontallyOver = body.right() > plat.x()
+                && body.left() < plat.x() + plat.width();
             boolean crossedTop = prevBottom <= top + 1f && body.bottom() >= top;
             if (horizontallyOver && crossedTop) {
                 p.y = top - GameConfig.PLAYER_HEIGHT;
                 p.vy = 0;
                 p.onGround = true;
+                p.ground = plat;
                 p.jumpsLeft = p.maxJumps;
+                // Re-detected every frame the player rests here, since prevBottom
+                // stays equal to the platform top — so this is the "standing on
+                // it" hook, not just a "landed this frame" one.
+                plat.onStand(p);
                 break;
             }
         }

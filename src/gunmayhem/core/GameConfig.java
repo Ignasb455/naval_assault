@@ -43,6 +43,14 @@ public final class GameConfig {
     // Per-second horizontal decay applied while being knocked back.
     public static final float KNOCKBACK_FRICTION = 3.5f;
 
+    // How quickly a player reaches their intended run speed, per second, by
+    // surface. SOLID_GRIP is deliberately huge: at any sane frame time the
+    // blend factor clamps to 1, which is the instant response the game had
+    // before platform materials existed. Ice is low enough to slide on.
+    public static final float SOLID_GRIP = 999f;
+    public static final float ICE_GRIP = 3f;
+    public static final float AIR_GRIP = 8f;
+
     // Lobby: the match starts once MIN_PLAYERS are connected and the countdown
     // expires; late joiners are welcome until then, up to MAX_PLAYERS.
     public static final int MIN_PLAYERS = 2;
