@@ -16,6 +16,7 @@ NICK ?=
 build:
 	mkdir -p $(OUT_DIR)
 	javac -d $(OUT_DIR) $(SOURCES)
+	cp -R $(SRC_DIR)/gunmayhem/core/audio/tracks $(OUT_DIR)/gunmayhem/core/audio/
 
 # A client that asks for the server address and your nickname on a join screen.
 run: build

@@ -5,6 +5,7 @@ import gunmayhem.core.GameConfig;
 import gunmayhem.core.GameWorld;
 import gunmayhem.core.LootCrate;
 import gunmayhem.core.Player;
+import gunmayhem.core.audio.Sound;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -94,13 +95,17 @@ public final class StateSnapshot {
     public final List<CrateView> crates;
     public final boolean over;
     public final int winnerId; // -1 when there is no winner yet / a draw
+    public final List<Sound> sounds;
+
     public StateSnapshot(List<PlayerView> players, List<BulletView> bullets,
-                         List<CrateView> crates, boolean over, int winnerId) {
+                         List<CrateView> crates, boolean over, int winnerId,
+                         List<Sound> sounds) {
         this.players = players;
         this.bullets = bullets;
         this.crates = crates;
         this.over = over;
         this.winnerId = winnerId;
+        this.sounds = sounds;
     }
 
     /** Capture the current authoritative world state. Server side only. */
@@ -123,7 +128,8 @@ public final class StateSnapshot {
             cs.add(new CrateView(c.x, c.y, c.drop.kind(), c.drop.rarity().wireName()));
         }
         int winner = world.winner() != null ? world.winner().id : -1;
-        return new StateSnapshot(ps, bs, cs, world.isOver(), winner);
+        // Drains the world's sound queue, so the sounds are send once.
+        return new StateSnapshot(ps, bs, cs, world.isOver(), winner, world.drainSounds());
     }
 
     /** Nickname of the player holding that id, or a blank string if unknown. */
@@ -185,6 +191,14 @@ public final class StateSnapshot {
         }
         root.put("crates", cs);
 
+        if (!sounds.isEmpty()) {
+            List<Object> snd = new ArrayList<>();
+            for (Sound s : sounds) {
+                snd.add(s.name());
+            }
+            root.put("sounds", snd);
+        }
+
         return Json.write(root);
     }
 
@@ -230,7 +244,19 @@ public final class StateSnapshot {
             }
         }
 
-        return new StateSnapshot(players, bullets, crates, over, winnerId);
+        List<Sound> sounds = new ArrayList<>();
+        if (root.get("sounds") instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof String s) {
+                    try {
+                        sounds.add(Sound.valueOf(s));
+                    } catch (IllegalArgumentException unknownToThisClient) {
+                    }
+                }
+            }
+        }
+
+        return new StateSnapshot(players, bullets, crates, over, winnerId, sounds);
     }
 
     private static String asString(Object o) {

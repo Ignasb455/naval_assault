@@ -1,6 +1,8 @@
 package gunmayhem.ui;
 
 import gunmayhem.core.GameConfig;
+import gunmayhem.core.audio.AudioManager;
+import gunmayhem.core.audio.Music;
 import gunmayhem.net.LobbyView;
 import gunmayhem.net.NetworkClient;
 import gunmayhem.net.StateSnapshot;
@@ -58,6 +60,10 @@ public final class NetworkGamePanel extends JPanel {
 
         Timer timer = new Timer(16, e -> repaint());
         timer.start();
+
+        // Music is client-side state, not something the server sends: it loops
+        // for as long as this window is open.
+        AudioManager.getInstance().playMusic(Music.BACKGROUND);
     }
 
     private boolean isLeft(int c)  { return c == KeyEvent.VK_A || c == KeyEvent.VK_LEFT; }
