@@ -2,6 +2,11 @@ package gunmayhem;
 
 import gunmayhem.net.GameServer;
 import gunmayhem.net.NetworkClient;
+import gunmayhem.core.gamemodes.FirstToThreeKills;
+import gunmayhem.core.gamemodes.GameMode;
+import gunmayhem.core.gamemodes.LastManStanding;
+import gunmayhem.core.gamemodes.SuddenDeath;
+import gunmayhem.core.gamemodes.TimeLimit;
 import gunmayhem.ui.ConnectDialog;
 import gunmayhem.ui.NetworkGamePanel;
 import java.io.IOException;
@@ -26,8 +31,10 @@ public final class Main {
         switch (mode) {
             case "server" -> {
                 int port = args.length > 1 ? Integer.parseInt(args[1]) : GameServer.DEFAULT_PORT;
-                new GameServer(port).run();
+                GameMode gameMode = args.length > 2 ? gameMode(args[2]) : new LastManStanding();
+                new GameServer(port, gameMode).run();
             }
+
             case "client" -> startClient(
                 args.length > 1 ? args[1] : "localhost",
                 args.length > 2 ? Integer.parseInt(args[2]) : GameServer.DEFAULT_PORT,
@@ -39,6 +46,17 @@ public final class Main {
                 System.err.println("  java -cp out gunmayhem.Main            (asks for host/nickname)");
             }
         }
+    }
+
+    private static GameMode gameMode(String name) {
+        return switch (name.toLowerCase()) {
+            case "lastmanstanding", "last-man-standing", "lms" -> new LastManStanding();
+            case "firsttothreekills", "first-to-three-kills", "kills" ->
+                new FirstToThreeKills();
+            case "timelimit", "time-limit", "time" -> new TimeLimit();
+            case "suddendeath", "sudden-death", "sudden" -> new SuddenDeath();
+            default -> throw new IllegalArgumentException("Unknown game mode: " + name);
+        };
     }
 
     /**

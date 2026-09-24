@@ -4,6 +4,8 @@ import gunmayhem.core.drops.Drop;
 import gunmayhem.core.drops.DropFactory;
 import gunmayhem.core.drops.GunDropFactory;
 import gunmayhem.core.drops.PowerUpDropFactory;
+import gunmayhem.core.gamemodes.GameMode;
+import gunmayhem.core.gamemodes.LastManStanding;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -18,15 +20,25 @@ public final class GameWorld {
     private final List<Bullet> bullets = new ArrayList<>();
     private final List<Platform> platforms = new ArrayList<>();
     private final List<LootCrate> crates = new ArrayList<>();
+    private final GameMode gameMode;
 
     private final Random rng = new Random();
     private float crateTimer = GameConfig.CRATE_INTERVAL;
 
     private boolean over;
     private Player winner;
+    private float elapsedSeconds;
 
     /** Build a match for the given roster (2-4 players, ids need not be contiguous). */
     public GameWorld(List<PlayerSpec> roster) {
+        this(roster, new LastManStanding());
+    }
+
+    public GameWorld(List<PlayerSpec> roster, GameMode gameMode) {
+        if (gameMode == null) {
+            throw new IllegalArgumentException("gameMode must not be null");
+        }
+        this.gameMode = gameMode;
         platforms.addAll(Stage.createPlatforms());
         for (int slot = 0; slot < roster.size(); slot++) {
             PlayerSpec spec = roster.get(slot);
@@ -34,6 +46,7 @@ public final class GameWorld {
             players.add(new Player(spec.id(), spec.name(), PlayerStyle.color(spec.id()),
                 spawn[0], spawn[1]));
         }
+        gameMode.configurePlayers(players);
     }
 
     public List<Player> players()     { return players; }
@@ -66,6 +79,7 @@ public final class GameWorld {
         if (over) {
             return;
         }
+        elapsedSeconds += Math.max(0f, dt);
         for (Player p : players) {
             p.tick(dt); // cooldowns keep ticking even for eliminated players
             if (p.isAlive()) {
@@ -212,6 +226,7 @@ public final class GameWorld {
                     continue;
                 }
                 if (b.bounds().intersects(p.bounds())) {
+                    p.lastHitBy = b.ownerId;
                     p.takeHit(b.directionX());
                     b.alive = false;
                     break;
@@ -231,21 +246,24 @@ public final class GameWorld {
             boolean offSide = b.right() < -GameConfig.DEATH_MARGIN
                 || b.left() > GameConfig.WORLD_WIDTH + GameConfig.DEATH_MARGIN;
             if (fell || offSide) {
-                p.loseLifeAndRespawn();
+                int livesBefore = p.lives;
+                    int killerId = p.lastHitBy;
+                    p.loseLifeAndRespawn();
+                    if (livesBefore > 0 && killerId >= 0) {
+                        Player killer = playerById(killerId);
+                    if (killer != null && killer != p) {
+                        killer.kills++;
+                    }
+                }
             }
         }
     }
 
     private void checkGameOver() {
-        List<Player> alive = new ArrayList<>();
-        for (Player p : players) {
-            if (p.isAlive()) {
-                alive.add(p);
-            }
-        }
-        if (players.size() >= 2 && alive.size() <= 1) {
+        GameMode.GameOverResult result = gameMode.checkGameOver(players, elapsedSeconds);
+        if (result.over()) {
             over = true;
-            winner = alive.size() == 1 ? alive.get(0) : null;
+            winner = result.winner();
         }
     }
 

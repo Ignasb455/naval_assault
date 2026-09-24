@@ -4,6 +4,8 @@ import gunmayhem.core.GameConfig;
 import gunmayhem.core.GameWorld;
 import gunmayhem.core.Player;
 import gunmayhem.core.PlayerSpec;
+import gunmayhem.core.gamemodes.GameMode;
+import gunmayhem.core.gamemodes.LastManStanding;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -47,6 +49,7 @@ public final class GameServer {
     private enum Phase { LOBBY, RUNNING }
 
     private final int port;
+    private final GameMode gameMode;
 
     /** Connected clients. Every field below is guarded by this list's monitor. */
     private final List<ClientHandler> clients = new ArrayList<>();
@@ -60,7 +63,15 @@ public final class GameServer {
     private volatile boolean running = true;
 
     public GameServer(int port) {
+        this(port, new LastManStanding());
+    }
+
+    public GameServer(int port, GameMode gameMode) {
         this.port = port;
+        if (gameMode == null) {
+            throw new IllegalArgumentException("gameMode must not be null");
+        }
+        this.gameMode = gameMode;
     }
 
     public void run() throws IOException {
@@ -219,7 +230,7 @@ public final class GameServer {
         for (ClientHandler c : clients) {
             roster.add(new PlayerSpec(c.playerId(), c.name()));
         }
-        world = new GameWorld(roster);
+        world = new GameWorld(roster, gameMode);
         phase = Phase.RUNNING;
         counting = false;
         countdown = 0f;
@@ -237,7 +248,7 @@ public final class GameServer {
                 for (ClientHandler c : clients) {
                     roster.add(new PlayerSpec(c.playerId(), c.name()));
                 }
-                world = new GameWorld(roster);
+                world = new GameWorld(roster, gameMode);
                 System.out.println("Rematch started with " + roster.size()
                     + " players: " + names());
             } else {

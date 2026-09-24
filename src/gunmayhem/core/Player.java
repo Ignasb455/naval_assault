@@ -24,6 +24,8 @@ public final class Player {
     public float vy;
 
     public int lives = GameConfig.START_LIVES;
+    public int kills;
+    public int lastHitBy = -1;
     public float damage;               // grows on hits, scales knockback
     public int facing = 1;             // +1 right, -1 left
 
@@ -124,6 +126,7 @@ public final class Player {
     /** Lose a life and respawn at the start point. */
     public void loseLifeAndRespawn() {
         lives--;
+        lastHitBy = -1;
         damage = 0f;
         vx = 0f;
         vy = 0f;
