@@ -6,6 +6,7 @@ import gunmayhem.core.GameWorld;
 import gunmayhem.core.LootCrate;
 import gunmayhem.core.Player;
 import gunmayhem.core.audio.Sound;
+import gunmayhem.core.stages.Platform;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,6 +16,9 @@ import java.util.Map;
  * An immutable view of the world at one instant — the authoritative state the
  * server broadcasts and clients render. Deliberately carries only what a client
  * needs to draw (no velocities), keeping the wire format small.
+ *
+ * <p>Platforms travel between stages and some of them move during a match, so
+ * the layout is sent too rather than rebuilt client-side.
  */
 public final class StateSnapshot {
 
@@ -80,6 +84,23 @@ public final class StateSnapshot {
         }
     }
 
+    /** One platform as the client needs to draw it. */
+    public static final class PlatformView {
+        public final float x;
+        public final float y;
+        public final float width;
+        public final float height;
+        public final String kind;   // "solid" / "ice" / "moving"
+
+        public PlatformView(float x, float y, float width, float height, String kind) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.kind = kind;
+        }
+    }
+
     public static final class BulletView {
         public final float x;
         public final float y;
@@ -93,16 +114,18 @@ public final class StateSnapshot {
     public final List<PlayerView> players;
     public final List<BulletView> bullets;
     public final List<CrateView> crates;
+    public final List<PlatformView> platforms;
     public final boolean over;
     public final int winnerId; // -1 when there is no winner yet / a draw
     public final List<Sound> sounds;
 
     public StateSnapshot(List<PlayerView> players, List<BulletView> bullets,
-                         List<CrateView> crates, boolean over, int winnerId,
-                         List<Sound> sounds) {
+                         List<CrateView> crates, List<PlatformView> platforms,
+                         boolean over, int winnerId, List<Sound> sounds) {
         this.players = players;
         this.bullets = bullets;
         this.crates = crates;
+        this.platforms = platforms;
         this.over = over;
         this.winnerId = winnerId;
         this.sounds = sounds;
@@ -127,9 +150,14 @@ public final class StateSnapshot {
         for (LootCrate c : world.crates()) {
             cs.add(new CrateView(c.x, c.y, c.drop.kind(), c.drop.rarity().wireName()));
         }
+        List<PlatformView> pls = new ArrayList<>();
+        for (Platform plat : world.platforms()) {
+            pls.add(new PlatformView(plat.x(), plat.y(), plat.width(), plat.height(),
+                plat.kind()));
+        }
         int winner = world.winner() != null ? world.winner().id : -1;
         // Drains the world's sound queue, so the sounds are send once.
-        return new StateSnapshot(ps, bs, cs, world.isOver(), winner, world.drainSounds());
+        return new StateSnapshot(ps, bs, cs, pls, world.isOver(), winner, world.drainSounds());
     }
 
     /** Nickname of the player holding that id, or a blank string if unknown. */
@@ -191,6 +219,18 @@ public final class StateSnapshot {
         }
         root.put("crates", cs);
 
+        List<Object> pls = new ArrayList<>();
+        for (PlatformView p : platforms) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("x", p.x);
+            m.put("y", p.y);
+            m.put("w", p.width);
+            m.put("h", p.height);
+            m.put("kind", p.kind);
+            pls.add(m);
+        }
+        root.put("platforms", pls);
+
         if (!sounds.isEmpty()) {
             List<Object> snd = new ArrayList<>();
             for (Sound s : sounds) {
@@ -244,6 +284,16 @@ public final class StateSnapshot {
             }
         }
 
+        List<PlatformView> platforms = new ArrayList<>();
+        Object rawPlatforms = root.get("platforms");
+        if (rawPlatforms instanceof List<?> list) {
+            for (Object o : list) {
+                Map<String, Object> m = (Map<String, Object>) o;
+                platforms.add(new PlatformView(asFloat(m.get("x")), asFloat(m.get("y")),
+                    asFloat(m.get("w")), asFloat(m.get("h")), asString(m.get("kind"))));
+            }
+        }
+
         List<Sound> sounds = new ArrayList<>();
         if (root.get("sounds") instanceof List<?> list) {
             for (Object o : list) {
@@ -256,7 +306,7 @@ public final class StateSnapshot {
             }
         }
 
-        return new StateSnapshot(players, bullets, crates, over, winnerId, sounds);
+        return new StateSnapshot(players, bullets, crates, platforms, over, winnerId, sounds);
     }
 
     private static String asString(Object o) {

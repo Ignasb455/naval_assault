@@ -1,9 +1,7 @@
 package gunmayhem.render;
 
 import gunmayhem.core.GameConfig;
-import gunmayhem.core.Platform;
 import gunmayhem.core.PlayerStyle;
-import gunmayhem.core.Stage;
 import gunmayhem.net.LobbyView;
 import gunmayhem.net.StateSnapshot;
 import java.awt.BasicStroke;
@@ -12,18 +10,24 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.util.List;
 
 /**
  * Draws the game with Java2D primitives: rectangles for platforms and players,
  * small rectangles for bullets, and text for the HUD, the lobby and the
- * game-over banner. Platforms are the static stage; everything else comes from
- * the server.
+ * game-over banner. Everything, platforms included, comes from the server: the
+ * stage varies between matches and some of its platforms move during one.
  */
 public final class Java2DRenderer implements Renderer {
     private static final Color BACKGROUND = new Color(24, 26, 38);
     private static final Color PLATFORM = new Color(70, 78, 110);
     private static final Color PLATFORM_EDGE = new Color(120, 132, 170);
+
+    // Platform materials read at a glance: ice is pale blue, a moving platform
+    // is warmer than the solid slate around it.
+    private static final Color PLATFORM_ICE = new Color(86, 122, 156);
+    private static final Color PLATFORM_ICE_EDGE = new Color(170, 214, 245);
+    private static final Color PLATFORM_MOVING = new Color(96, 84, 118);
+    private static final Color PLATFORM_MOVING_EDGE = new Color(186, 150, 210);
     private static final Color BULLET = new Color(255, 212, 0);
     private static final Color MUTED = new Color(150, 156, 180);
     private static final Color DIM = new Color(220, 220, 220, 150);
@@ -45,12 +49,10 @@ public final class Java2DRenderer implements Renderer {
     private final Font countdownFont = new Font("SansSerif", Font.BOLD, 92);
     private final Font seatFont = new Font("SansSerif", Font.BOLD, 18);
 
-    private final List<Platform> platforms = Stage.createPlatforms();
-
     @Override
     public void draw(Graphics2D g, StateSnapshot state) {
         prepare(g);
-        drawBackdrop(g);
+        drawBackdrop(g, state);
         drawCrates(g, state);
         drawBullets(g, state);
         drawPlayers(g, state);
@@ -177,16 +179,33 @@ public final class Java2DRenderer implements Renderer {
             RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
     }
 
-    private void drawBackdrop(Graphics2D g) {
+    private void drawBackdrop(Graphics2D g, StateSnapshot state) {
         g.setColor(BACKGROUND);
         g.fillRect(0, 0, GameConfig.WORLD_WIDTH, GameConfig.WORLD_HEIGHT);
-        for (Platform plat : platforms) {
-            g.setColor(PLATFORM);
+        for (StateSnapshot.PlatformView plat : state.platforms) {
+            g.setColor(platformColor(plat.kind));
             g.fillRect((int) plat.x, (int) plat.y, (int) plat.width, (int) plat.height);
-            g.setColor(PLATFORM_EDGE);
+            g.setColor(platformEdgeColor(plat.kind));
             g.setStroke(new BasicStroke(2f));
-            g.drawLine((int) plat.x, (int) plat.y, (int) (plat.x + plat.width), (int) plat.y);
+            g.drawLine((int) plat.x, (int) plat.y,
+                (int) (plat.x + plat.width), (int) plat.y);
         }
+    }
+
+    private static Color platformColor(String kind) {
+        return switch (kind) {
+            case "ice" -> PLATFORM_ICE;
+            case "moving" -> PLATFORM_MOVING;
+            default -> PLATFORM;
+        };
+    }
+
+    private static Color platformEdgeColor(String kind) {
+        return switch (kind) {
+            case "ice" -> PLATFORM_ICE_EDGE;
+            case "moving" -> PLATFORM_MOVING_EDGE;
+            default -> PLATFORM_EDGE;
+        };
     }
 
     private void drawBullets(Graphics2D g, StateSnapshot state) {

@@ -17,11 +17,15 @@ import javax.swing.SwingUtilities;
  * Entry point (pure JDK — no external frameworks). All play is client/server:
  * the server owns the simulation and every player runs a client.
  * <pre>
- *   java -cp out gunmayhem.Main server [port]                 authoritative server (default port 5010)
+ *   java -cp out gunmayhem.Main server [port] [mode] [stage]  authoritative server (default port 5010)
  *   java -cp out gunmayhem.Main client &lt;host&gt; [port] [nick]   join a server
  *   java -cp out gunmayhem.Main                               join a server (asks host/port/nickname)
  * </pre>
  * When no nickname is given on the command line the join screen asks for one.
+ * The server picks a random stage for each match unless one is named:
+ * {@code classic}, {@code glacier} or {@code drift}. The mode defaults to
+ * last-man-standing; the others are first-to-three-kills, time-limit and
+ * sudden-death. Mode and stage may be given in either order.
  */
 public final class Main {
     private Main() { }
@@ -31,8 +35,18 @@ public final class Main {
         switch (mode) {
             case "server" -> {
                 int port = args.length > 1 ? Integer.parseInt(args[1]) : GameServer.DEFAULT_PORT;
-                GameMode gameMode = args.length > 2 ? gameMode(args[2]) : new LastManStanding();
-                new GameServer(port, gameMode).run();
+                // Mode and stage names never overlap, so they may come in either order.
+                GameMode gameMode = new LastManStanding();
+                String stageId = null;
+                for (int i = 2; i < args.length; i++) {
+                    GameMode named = gameMode(args[i]);
+                    if (named != null) {
+                        gameMode = named;
+                    } else {
+                        stageId = args[i];
+                    }
+                }
+                new GameServer(port, gameMode, stageId).run();
             }
 
             case "client" -> startClient(
@@ -41,7 +55,7 @@ public final class Main {
                 args.length > 3 ? args[3] : null);
             default -> {
                 System.err.println("Usage:");
-                System.err.println("  java -cp out gunmayhem.Main server [port]");
+                System.err.println("  java -cp out gunmayhem.Main server [port] [mode] [classic|glacier|drift]");
                 System.err.println("  java -cp out gunmayhem.Main client <host> [port] [nickname]");
                 System.err.println("  java -cp out gunmayhem.Main            (asks for host/nickname)");
             }
@@ -55,7 +69,7 @@ public final class Main {
                 new FirstToThreeKills();
             case "timelimit", "time-limit", "time" -> new TimeLimit();
             case "suddendeath", "sudden-death", "sudden" -> new SuddenDeath();
-            default -> throw new IllegalArgumentException("Unknown game mode: " + name);
+            default -> null; // not a mode name: treated as a stage id
         };
     }
 

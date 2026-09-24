@@ -26,7 +26,7 @@ Or without Make:
 
 ```bash
 javac -d out $(find src -name '*.java')
-java -cp out gunmayhem.Main server [port] [mode]          # server (default port 5010)
+java -cp out gunmayhem.Main server [port] [mode] [stage]  # server (default port 5010)
 java -cp out gunmayhem.Main client <host> [port] [nick]   # client
 java -cp out gunmayhem.Main                               # client, asks for host/nickname
 ```
@@ -58,6 +58,9 @@ Knock your opponents off the stage. Each hit raises their damage %, which makes
 the next hit throw them further. Three lives each; last player standing wins.
 The server supports `last-man-standing` (default), `first-to-three-kills`,
 `time-limit`, and `sudden-death` modes; pass the mode after the server port.
+Each match is played on a random stage (`classic`, `glacier` with slippery ice,
+or `drift` with moving platforms); name one after the port to pin it. Mode and
+stage may be given in either order, e.g. `server 5010 sudden-death drift`.
 Press `R` afterwards for a rematch — with fewer than two players connected the
 server drops back to the lobby and waits for more.
 

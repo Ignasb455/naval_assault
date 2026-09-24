@@ -4,6 +4,8 @@ import gunmayhem.core.Bullet;
 import gunmayhem.core.GameConfig;
 import gunmayhem.core.GameWorld;
 import gunmayhem.core.Player;
+import gunmayhem.core.stages.Stage;
+import gunmayhem.core.stages.Stages;
 import gunmayhem.core.PlayerSpec;
 import gunmayhem.core.gamemodes.GameMode;
 import gunmayhem.core.gamemodes.LastManStanding;
@@ -53,6 +55,13 @@ public final class GameServer {
     private final int port;
     private final GameMode gameMode;
 
+    // Each match is played on a stage drawn at random, so the lobby never
+    // knows in advance which one it will get. A stage id given on the command
+    // line pins every match to that one instead, which is what you want when
+    // demonstrating or debugging a particular stage.
+    private final java.util.Random rng = new java.util.Random();
+    private final String fixedStageId;
+
     /** Connected clients. Every field below is guarded by this list's monitor. */
     private final List<ClientHandler> clients = new ArrayList<>();
 
@@ -65,15 +74,21 @@ public final class GameServer {
     private volatile boolean running = true;
 
     public GameServer(int port) {
-        this(port, new LastManStanding());
+        this(port, new LastManStanding(), null);
     }
 
-    public GameServer(int port, GameMode gameMode) {
+    /**
+     * @param gameMode decides when each match is over and who won
+     * @param stageId  pins every match to that stage, or null to pick one at
+     *                 random for each match.
+     */
+    public GameServer(int port, GameMode gameMode, String stageId) {
         this.port = port;
         if (gameMode == null) {
             throw new IllegalArgumentException("gameMode must not be null");
         }
         this.gameMode = gameMode;
+        this.fixedStageId = stageId;
     }
 
     public void run() throws IOException {
@@ -226,18 +241,24 @@ public final class GameServer {
         }
     }
 
+    private Stage pickStage() {
+        return fixedStageId == null ? Stages.random(rng) : Stages.byId(fixedStageId);
+    }
+
     /** Caller must hold the {@code clients} lock. */
     private void startMatch() {
         List<PlayerSpec> roster = new ArrayList<>();
         for (ClientHandler c : clients) {
             roster.add(new PlayerSpec(c.playerId(), c.name()));
         }
-        world = new GameWorld(roster, gameMode);
+        Stage stage = pickStage();
+        world = new GameWorld(roster, stage, gameMode);
         phase = Phase.RUNNING;
         counting = false;
         countdown = 0f;
         restartRequested = false;
-        System.out.println("Match started with " + roster.size() + " players: " + names());
+        System.out.println("Match started with " + roster.size() + " players on "
+            + stage.displayName() + ": " + names());
         System.out.println("Further connections are now rejected until the match ends.");
     }
 
@@ -250,9 +271,10 @@ public final class GameServer {
                 for (ClientHandler c : clients) {
                     roster.add(new PlayerSpec(c.playerId(), c.name()));
                 }
-                world = new GameWorld(roster, gameMode);
+                Stage stage = pickStage();
+                world = new GameWorld(roster, stage, gameMode);
                 System.out.println("Rematch started with " + roster.size()
-                    + " players: " + names());
+                    + " players on " + stage.displayName() + ": " + names());
             } else {
                 returnToLobby("not enough players for a rematch");
                 return;
@@ -420,6 +442,6 @@ public final class GameServer {
 
     public static void main(String[] args) throws IOException {
         int port = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_PORT;
-        new GameServer(port).run();
+        new GameServer(port, new LastManStanding(), args.length > 1 ? args[1] : null).run();
     }
 }
