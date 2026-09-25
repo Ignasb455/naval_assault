@@ -1,5 +1,7 @@
 package gunmayhem.core;
 
+import gunmayhem.core.prototype.CopyMode;
+
 /**
  * Central tuning values for the demo. Units are pixels and seconds.
  * Keeping them in one place makes the physics easy to tweak.
@@ -30,13 +32,29 @@ public final class GameConfig {
     public static final float BULLET_HEIGHT = 5f;
     public static final float SHOOT_COOLDOWN = 0.18f; // seconds between shots
 
+    // Bullet templates. Each weapon clones one of these, so the numbers that
+    // describe a shot live here rather than in four constructor calls.
+    public static final float PISTOL_DAMAGE = 9f;
+    public static final float SEMI_DAMAGE = 7f;
+    public static final float SMG_DAMAGE = 5f;
+    public static final float PELLET_DAMAGE = 4f;
+
+    public static final int BULLET_COLOR_PISTOL = 0xFFD400;  // amber
+    public static final int BULLET_COLOR_SEMI = 0xFFE96B;    // pale amber
+    public static final int BULLET_COLOR_SMG = 0x8CFF6B;     // green
+    public static final int BULLET_COLOR_PELLET = 0xFF8A3D;  // orange
+
+    // How a bullet is cloned from its weapon's template. Not final: flipping
+    // this to SHALLOW makes every clone share one BulletSpec, which is exactly
+    // the difference the prototype demo prints out.
+    public static CopyMode BULLET_COPY_MODE = CopyMode.DEEP;
+
     // Knockback: like a Smash-style damage meter, hits push harder as damage grows.
     // Kept above MOVE_SPEED so even a first hit overpowers the victim's own
     // movement input and visibly throws them (below it, control cancels the hit).
     public static final float KNOCKBACK_BASE = 420f;       // horizontal impulse at 0% damage
     public static final float KNOCKBACK_PER_DAMAGE = 14f;  // extra impulse per damage point
     public static final float KNOCKBACK_UP = 260f;         // small upward pop on hit
-    public static final float DAMAGE_PER_HIT = 8f;
 
     // How far past a world edge a player falls before losing a life.
     public static final float DEATH_MARGIN = 120f;

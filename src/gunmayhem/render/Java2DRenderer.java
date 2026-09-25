@@ -28,7 +28,6 @@ public final class Java2DRenderer implements Renderer {
     private static final Color PLATFORM_ICE_EDGE = new Color(170, 214, 245);
     private static final Color PLATFORM_MOVING = new Color(96, 84, 118);
     private static final Color PLATFORM_MOVING_EDGE = new Color(186, 150, 210);
-    private static final Color BULLET = new Color(255, 212, 0);
     private static final Color MUTED = new Color(150, 156, 180);
     private static final Color DIM = new Color(220, 220, 220, 150);
 
@@ -209,8 +208,10 @@ public final class Java2DRenderer implements Renderer {
     }
 
     private void drawBullets(Graphics2D g, StateSnapshot state) {
-        g.setColor(BULLET);
         for (StateSnapshot.BulletView b : state.bullets) {
+            // Each weapon's template carries its own colour, so pellets and
+            // pistol rounds are told apart at a glance.
+            g.setColor(new Color(b.color));
             g.fillRect((int) b.x, (int) b.y,
                 (int) GameConfig.BULLET_WIDTH, (int) GameConfig.BULLET_HEIGHT);
         }

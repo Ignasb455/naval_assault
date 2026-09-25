@@ -262,7 +262,7 @@ public final class GameWorld {
                 }
                 if (b.bounds().intersects(p.bounds())) {
                     p.lastHitBy = b.ownerId;
-                    p.takeHit(b.directionX());
+                    p.takeHit(b.directionX(), b.spec);
                     b.alive = false;
                     break;
                 }

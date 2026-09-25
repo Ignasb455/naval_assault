@@ -91,16 +91,20 @@ public final class Player {
         return weapon.fire(this);
     }
 
-    /** Apply knockback from a hit and bump the damage meter. */
-    public void takeHit(int fromDirectionX) {
+    /**
+     * Apply knockback from a hit and bump the damage meter. How hard the hit
+     * lands comes from the bullet's own spec, so a shotgun pellet stings less
+     * than a pistol round.
+     */
+    public void takeHit(int fromDirectionX, BulletSpec spec) {
         if (shielded) {
             shielded = false; // the shield swallows exactly one hit
             return;
         }
-        float impulse = GameConfig.KNOCKBACK_BASE + damage * GameConfig.KNOCKBACK_PER_DAMAGE;
+        float impulse = spec.knockback + damage * GameConfig.KNOCKBACK_PER_DAMAGE;
         vx = fromDirectionX * impulse;
         vy = -GameConfig.KNOCKBACK_UP;
-        damage += GameConfig.DAMAGE_PER_HIT;
+        damage += spec.damage;
     }
 
     /** Advance per-player timers and resolve facing from movement intent. */

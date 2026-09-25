@@ -104,10 +104,12 @@ public final class StateSnapshot {
     public static final class BulletView {
         public final float x;
         public final float y;
+        public final int color; // packed RGB, straight from the bullet's spec
 
-        public BulletView(float x, float y) {
+        public BulletView(float x, float y, int color) {
             this.x = x;
             this.y = y;
+            this.color = color;
         }
     }
 
@@ -144,7 +146,7 @@ public final class StateSnapshot {
         }
         List<BulletView> bs = new ArrayList<>();
         for (Bullet b : world.bullets()) {
-            bs.add(new BulletView(b.x, b.y));
+            bs.add(new BulletView(b.x, b.y, b.spec.colorRgb));
         }
         List<CrateView> cs = new ArrayList<>();
         for (LootCrate c : world.crates()) {
@@ -204,6 +206,7 @@ public final class StateSnapshot {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("x", b.x);
             m.put("y", b.y);
+            m.put("color", b.color);
             bs.add(m);
         }
         root.put("bullets", bs);
@@ -271,7 +274,8 @@ public final class StateSnapshot {
         List<BulletView> bullets = new ArrayList<>();
         for (Object o : (List<Object>) root.get("bullets")) {
             Map<String, Object> m = (Map<String, Object>) o;
-            bullets.add(new BulletView(asFloat(m.get("x")), asFloat(m.get("y"))));
+            bullets.add(new BulletView(asFloat(m.get("x")), asFloat(m.get("y")),
+                asInt(m.get("color"), 0xFFD400)));
         }
 
         List<CrateView> crates = new ArrayList<>();

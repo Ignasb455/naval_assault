@@ -1,6 +1,7 @@
 package gunmayhem.core.drops;
 
 import gunmayhem.core.Bullet;
+import gunmayhem.core.BulletSpec;
 import gunmayhem.core.GameConfig;
 import gunmayhem.core.Player;
 import java.util.List;
@@ -10,6 +11,10 @@ import java.util.List;
  * clear step up from the pistol everybody starts with.
  */
 public final class SemiAutoPistol implements CommonDrop, Weapon {
+    private final Bullet prototype = new Bullet(0, 0, 0, -1,
+        new BulletSpec(GameConfig.SEMI_DAMAGE, GameConfig.KNOCKBACK_BASE * 0.95f,
+            GameConfig.BULLET_COLOR_SEMI, "semi-auto"));
+
     @Override
     public String name() {
         return "Semi-auto";
@@ -32,7 +37,6 @@ public final class SemiAutoPistol implements CommonDrop, Weapon {
 
     @Override
     public List<Bullet> fire(Player owner) {
-        return List.of(new Bullet(muzzleX(owner), muzzleY(owner),
-            GameConfig.BULLET_SPEED * 1.1f * owner.facing, owner.id));
+        return List.of(aim(prototype.copy(), owner, GameConfig.BULLET_SPEED * 1.1f, 0f));
     }
 }

@@ -31,4 +31,16 @@ public interface Weapon {
     default float muzzleY(Player owner) {
         return owner.bounds().centerY() - GameConfig.BULLET_HEIGHT / 2f;
     }
+
+    /**
+     * Point a freshly cloned bullet at whatever the owner is facing. Everything
+     * else — damage, knockback, colour — already came from the template.
+     */
+    default Bullet aim(Bullet clone, Player owner, float speed, float yOffset) {
+        clone.x = muzzleX(owner);
+        clone.y = muzzleY(owner) + yOffset;
+        clone.vx = speed * owner.facing;
+        clone.ownerId = owner.id;
+        return clone;
+    }
 }

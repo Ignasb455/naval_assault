@@ -1,5 +1,6 @@
 package gunmayhem;
 
+import gunmayhem.core.prototype.PrototypeDemo;
 import gunmayhem.net.GameServer;
 import gunmayhem.net.NetworkClient;
 import gunmayhem.core.gamemodes.FirstToThreeKills;
@@ -33,6 +34,7 @@ public final class Main {
     public static void main(String[] args) throws IOException {
         String mode = args.length > 0 ? args[0].toLowerCase() : "client";
         switch (mode) {
+            case "prototype" -> PrototypeDemo.run();
             case "server" -> {
                 int port = args.length > 1 ? Integer.parseInt(args[1]) : GameServer.DEFAULT_PORT;
                 // Mode and stage names never overlap, so they may come in either order.
@@ -58,6 +60,7 @@ public final class Main {
                 System.err.println("  java -cp out gunmayhem.Main server [port] [mode] [classic|glacier|drift]");
                 System.err.println("  java -cp out gunmayhem.Main client <host> [port] [nickname]");
                 System.err.println("  java -cp out gunmayhem.Main            (asks for host/nickname)");
+                System.err.println("  java -cp out gunmayhem.Main prototype  (shallow vs deep copy demo)");
             }
         }
     }
