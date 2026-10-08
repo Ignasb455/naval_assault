@@ -1,8 +1,6 @@
 package gunmayhem.ui;
 
 import gunmayhem.core.GameConfig;
-import gunmayhem.core.audio.AudioManager;
-import gunmayhem.core.audio.Music;
 import gunmayhem.net.LobbyView;
 import gunmayhem.net.NetworkClient;
 import gunmayhem.net.StateSnapshot;
@@ -37,6 +35,7 @@ public final class NetworkGamePanel extends JPanel {
     private final NetworkClient client;
     private final Renderer renderer = new Java2DRenderer();
     private final Set<Integer> held = new HashSet<>();
+    private final Timer repaintTimer;
     private boolean lastLeft;
     private boolean lastRight;
 
@@ -58,12 +57,16 @@ public final class NetworkGamePanel extends JPanel {
             @Override public void focusLost(FocusEvent e) { releaseAllKeys(); }
         });
 
-        Timer timer = new Timer(16, e -> repaint());
-        timer.start();
+        repaintTimer = new Timer(16, e -> repaint());
+        repaintTimer.start();
+    }
 
-        // Music is client-side state, not something the server sends: it loops
-        // for as long as this window is open.
-        AudioManager.getInstance().playMusic(Music.BACKGROUND);
+    /**
+     * Stop repainting. A closed window whose timer still runs keeps posting
+     * events sixty times a second, which also keeps the process alive.
+     */
+    public void stop() {
+        repaintTimer.stop();
     }
 
     private boolean isLeft(int c)  { return c == KeyEvent.VK_A || c == KeyEvent.VK_LEFT; }
