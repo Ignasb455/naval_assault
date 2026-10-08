@@ -137,12 +137,21 @@ public final class StateSnapshot {
     public static StateSnapshot fromWorld(GameWorld world) {
         List<PlayerView> ps = new ArrayList<>();
         for (Player p : world.players()) {
-            ps.add(new PlayerView(p.id, p.name, p.x, p.y, p.facing, p.damage, p.lives, p.kills,
-                p.isAlive(), p.weapon.name(),
-                p.speedMultiplier > 1f,
-                p.maxJumps > GameConfig.MAX_JUMPS,
-                p.shielded,
-                Math.abs(p.vx) > 1f));
+            ps.add(new PlayerViewBuilder()
+                .id(p.id)
+                .name(p.name)
+                .position(p.x, p.y)
+                .facing(p.facing)
+                .damage(p.damage)
+                .lives(p.lives)
+                .kills(p.kills)
+                .alive(p.isAlive())
+                .weapon(p.weapon.name())
+                .boosted(p.speedMultiplier > 1f)
+                .tripleJump(p.maxJumps > GameConfig.MAX_JUMPS)
+                .shielded(p.shielded)
+                .moving(Math.abs(p.vx) > 1f)
+                .build());
         }
         List<BulletView> bs = new ArrayList<>();
         for (Bullet b : world.bullets()) {
@@ -254,21 +263,21 @@ public final class StateSnapshot {
         List<PlayerView> players = new ArrayList<>();
         for (Object o : (List<Object>) root.get("players")) {
             Map<String, Object> m = (Map<String, Object>) o;
-            players.add(new PlayerView(
-                asInt(m.get("id"), 0),
-                asString(m.get("name")),
-                asFloat(m.get("x")),
-                asFloat(m.get("y")),
-                asInt(m.get("facing"), 1),
-                asFloat(m.get("damage")),
-                asInt(m.get("lives"), 0),
-                asInt(m.get("kills"), 0),
-                asBool(m.get("alive")),
-                asString(m.get("weapon")),
-                asBool(m.get("boosted")),
-                asBool(m.get("triple")),
-                asBool(m.get("shield")),
-                asBool(m.get("moving"))));
+            players.add(new PlayerViewBuilder()
+                .id(asInt(m.get("id"), 0))
+                .name(asString(m.get("name")))
+                .position(asFloat(m.get("x")), asFloat(m.get("y")))
+                .facing(asInt(m.get("facing"), 1))
+                .damage(asFloat(m.get("damage")))
+                .lives(asInt(m.get("lives"), 0))
+                .kills(asInt(m.get("kills"), 0))
+                .alive(asBool(m.get("alive")))
+                .weapon(asString(m.get("weapon")))
+                .boosted(asBool(m.get("boosted")))
+                .tripleJump(asBool(m.get("triple")))
+                .shielded(asBool(m.get("shield")))
+                .moving(asBool(m.get("moving")))
+                .build());
         }
 
         List<BulletView> bullets = new ArrayList<>();
