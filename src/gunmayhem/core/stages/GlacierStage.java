@@ -20,7 +20,7 @@ public final class GlacierStage extends Stage {
     }
 
     @Override
-    protected Platform createPlatform(int index, float x, float y, float w, float h) {
+    protected Platform createPlatform(float x, float y, float w, float h) {
         return new IcePlatform(x, y, w, h);
     }
 

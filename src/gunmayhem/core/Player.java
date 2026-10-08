@@ -16,9 +16,6 @@ public final class Player {
     public final String name;
     public final Color color;
 
-    private final float spawnX;
-    private final float spawnY;
-
     public float x;
     public float y;
     public float vx;
@@ -50,14 +47,12 @@ public final class Player {
 
     private float shootTimer;
 
-    public Player(int id, String name, Color color, float spawnX, float spawnY) {
+    public Player(int id, String name, Color color, float x, float y) {
         this.id = id;
         this.name = name;
         this.color = color;
-        this.spawnX = spawnX;
-        this.spawnY = spawnY;
-        this.x = spawnX;
-        this.y = spawnY;
+        this.x = x;
+        this.y = y;
     }
 
     public boolean isAlive() {
@@ -133,15 +128,19 @@ public final class Player {
         vy = 0f;
     }
 
-    /** Lose a life and respawn at the start point. */
-    public void loseLifeAndRespawn() {
+    /**
+     * Lose a life and reappear at the given position. Where that is belongs to
+     * the stage, which is asked at the moment of respawn; the player does not
+     * remember a spawn point of its own.
+     */
+    public void loseLifeAndRespawn(float x, float y) {
         lives--;
         lastHitBy = -1;
         damage = 0f;
         vx = 0f;
         vy = 0f;
-        x = spawnX;
-        y = spawnY;
+        this.x = x;
+        this.y = y;
         onGround = false;
         ground = null;
 
