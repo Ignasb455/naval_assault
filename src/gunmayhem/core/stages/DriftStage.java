@@ -3,13 +3,12 @@ package gunmayhem.core.stages;
 import gunmayhem.core.GameConfig;
 
 /**
- * Concrete creator: a solid centre with ledges that slide back and forth and a
- * top perch that rides up and down. The centre stays put on purpose — with
- * every surface moving, a respawning player has nowhere predictable to land.
+ * Concrete creator: every platform slides back and forth. Platforms on the
+ * left half start out moving right and those on the right half start out
+ * moving left, so the gaps between them open and close.
  *
- * <p>This is the stage that uses the factory method's {@code index}: the same
- * creator returns three differently-configured products depending on which slot
- * of the layout is being built.
+ * <p>Nothing here stands still, which is safe because {@link Stage} works out
+ * spawn points from where the platforms currently are.
  */
 public final class DriftStage extends Stage {
 
@@ -23,27 +22,26 @@ public final class DriftStage extends Stage {
         return "Drift";
     }
 
+    /** How far each platform travels either side of its starting position. */
+    private static final float RANGE = 90f;
+    private static final float SPEED = 60f;
+
     @Override
-    protected Platform createPlatform(int index, float x, float y, float w, float h) {
-        return switch (index) {
-            case 0 -> new SolidPlatform(x, y, w, h);
-            // Both ledges drift sideways in step, so the gap between them and
-            // the centre opens and closes as they travel.
-            case 1, 2 -> new MovingPlatform(x, y, w, h, 1f, 0f, 120f, 70f);
-            default -> new MovingPlatform(x, y, w, h, 0f, 1f, 60f, 55f);
-        };
+    protected Platform createPlatform(float x, float y, float w, float h) {
+        boolean onLeftHalf = x + w / 2f <= GameConfig.WORLD_WIDTH / 2f;
+        return new MovingPlatform(x, y, w, h, onLeftHalf ? 1f : -1f, 0f, RANGE, SPEED);
     }
 
     @Override
     protected float[][] layout() {
         int w = GameConfig.WORLD_WIDTH;
-        // The ledges sit further in than on Classic so that a full 120px of
-        // travel either way still keeps them on screen.
+        // The ledges sit further in than on Classic so that RANGE of travel
+        // either way still keeps them on screen.
         return new float[][] {
-            { w / 2f - 240, 430, 480, 26 }, // center, solid
-            { 170, 300, 180, 22 },          // left ledge, drifts 50..290
-            { w - 350, 300, 180, 22 },      // right ledge, drifts 490..730
-            { w / 2f - 90, 190, 180, 22 },  // top perch, rides 130..250
+            { w / 2f - 240, 430, 480, 26 }, // center
+            { 170, 300, 180, 22 },          // left ledge
+            { w - 350, 300, 180, 22 },      // right ledge
+            { w / 2f - 90, 190, 180, 22 },  // top perch
         };
     }
 }

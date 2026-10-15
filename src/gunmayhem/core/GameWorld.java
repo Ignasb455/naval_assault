@@ -21,7 +21,7 @@ import java.util.Random;
 public final class GameWorld {
     private final List<Player> players = new ArrayList<>();
     private final List<Bullet> bullets = new ArrayList<>();
-    private final List<Platform> platforms = new ArrayList<>();
+    private final Stage stage;      // owns the platforms and the spawn points
     private final List<LootCrate> crates = new ArrayList<>();
     private final GameMode gameMode;
     private final List<Sound> soundEvents = new ArrayList<>();
@@ -43,7 +43,7 @@ public final class GameWorld {
             throw new IllegalArgumentException("gameMode must not be null");
         }
         this.gameMode = gameMode;
-        platforms.addAll(stage.createPlatforms());
+        this.stage = stage;
         for (int slot = 0; slot < roster.size(); slot++) {
             PlayerSpec spec = roster.get(slot);
             float[] spawn = stage.spawnPoint(slot);
@@ -55,7 +55,7 @@ public final class GameWorld {
 
     public List<Player> players()     { return players; }
     public List<Bullet> bullets()     { return bullets; }
-    public List<Platform> platforms() { return platforms; }
+    public List<Platform> platforms() { return stage.platforms(); }
     public List<LootCrate> crates()   { return crates; }
     public boolean isOver()           { return over; }
     public Player winner()            { return winner; }
@@ -86,9 +86,7 @@ public final class GameWorld {
         elapsedSeconds += Math.max(0f, dt);
         // Platforms move first: everything below reads their current position,
         // and riders are carried by the distance covered in this step.
-        for (Platform plat : platforms) {
-            plat.update(dt);
-        }
+        stage.update(dt);
         for (Player p : players) {
             p.tick(dt); // cooldowns keep ticking even for eliminated players
             if (p.isAlive()) {
@@ -149,7 +147,7 @@ public final class GameWorld {
             return;
         }
         Aabb box = crate.bounds();
-        for (Platform plat : platforms) {
+        for (Platform plat : stage.platforms()) {
             boolean horizontallyOver = box.right() > plat.x()
                 && box.left() < plat.x() + plat.width();
             if (horizontallyOver && box.bottom() >= plat.y() && box.top() < plat.y()) {
@@ -230,7 +228,7 @@ public final class GameWorld {
             return; // moving up: pass through one-way platforms
         }
         Aabb body = p.bounds();
-        for (Platform plat : platforms) {
+        for (Platform plat : stage.platforms()) {
             float top = plat.y();
             boolean horizontallyOver = body.right() > plat.x()
                 && body.left() < plat.x() + plat.width();
@@ -272,7 +270,10 @@ public final class GameWorld {
     }
 
     private void checkOutOfBounds() {
-        for (Player p : players) {
+        // By slot: the players list is in roster order, which is what the stage
+        // hands out spawn points by.
+        for (int slot = 0; slot < players.size(); slot++) {
+            Player p = players.get(slot);
             if (!p.isAlive()) {
                 continue;
             }
@@ -283,7 +284,10 @@ public final class GameWorld {
             if (fell || offSide) {
                 int livesBefore = p.lives;
                     int killerId = p.lastHitBy;
-                    p.loseLifeAndRespawn();
+                    // Asked now, not remembered from the start of the match:
+                    // the platform this slot spawns on may have moved since.
+                    float[] spawn = stage.spawnPoint(slot);
+                    p.loseLifeAndRespawn(spawn[0], spawn[1]);
                     if (livesBefore > 0 && killerId >= 0) {
                         Player killer = playerById(killerId);
                     if (killer != null && killer != p) {

@@ -9,10 +9,12 @@ import gunmayhem.core.Player;
  * decides how much grip the surface gives, whether it travels, and what happens
  * to whoever is standing on it.
  *
- * <p>Only universally relevant operations belong here — the landing resolution
+ * <p>
+ * Only universally relevant operations belong here — the landing resolution
  * itself is identical for every material and stays in {@code GameWorld}.
  *
- * <p>{@link #bounds()} is built from the accessors rather than the fields, so a
+ * <p>
+ * {@link #bounds()} is built from the accessors rather than the fields, so a
  * material that moves only has to override {@link #x()}/{@link #y()} and its
  * collision box follows automatically.
  */
@@ -29,10 +31,21 @@ public abstract class Platform {
         this.height = height;
     }
 
-    public float x()      { return originX; }
-    public float y()      { return originY; }
-    public float width()  { return width; }
-    public float height() { return height; }
+    public float x() {
+        return originX;
+    }
+
+    public float y() {
+        return originY;
+    }
+
+    public float width() {
+        return width;
+    }
+
+    public float height() {
+        return height;
+    }
 
     public Aabb bounds() {
         return new Aabb(x(), y(), width(), height());
@@ -45,13 +58,15 @@ public abstract class Platform {
     public abstract float grip();
 
     /** How far the platform travelled this frame — riders are carried by this. */
-    public float deltaX() { return 0f; }
+    public float deltaX() {
+        return 0f;
+    }
 
-    public float deltaY() { return 0f; }
-
-    /** Called every frame a player is resting on the top surface. */
-    public void onStand(Player p) { }
+    public float deltaY() {
+        return 0f;
+    }
 
     /** Advance per-platform state. Most materials have none. */
-    public void update(float dt) { }
+    public void update(float dt) {
+    }
 }

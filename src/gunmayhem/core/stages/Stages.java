@@ -7,6 +7,10 @@ import java.util.Random;
  * Convenience lookup over the available stages. This is a plain static helper,
  * not part of the factory-method pattern: {@link Stage} and its subclasses are
  * the creators, and this only picks which creator a match uses.
+ *
+ * <p>Every call hands out new instances. That matters: a stage holds its
+ * platforms' live state, so a match must never be given a stage another match
+ * has used.
  */
 public final class Stages {
     private Stages() { }
