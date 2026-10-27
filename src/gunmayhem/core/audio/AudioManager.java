@@ -73,7 +73,10 @@ public final class AudioManager {
             clip.open(pcm);
             clip.start();
 
-        } catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
+        } catch (UnsupportedAudioFileException | IOException | LineUnavailableException
+                 | IllegalArgumentException e) {
+            // IllegalArgumentException: no audio device can play this format, e.g.
+            // a machine without sound output. The game then simply runs silent.
             System.err.println("Could not play " + sound + ": " + e.getMessage());
         }
     }
@@ -132,7 +135,10 @@ public final class AudioManager {
             musicClip.open(pcm);
             musicClip.loop(Clip.LOOP_CONTINUOUSLY);
 
-        } catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
+        } catch (UnsupportedAudioFileException | IOException | LineUnavailableException
+                 | IllegalArgumentException e) {
+            // IllegalArgumentException: no audio device can play this format, e.g.
+            // a machine without sound output. The game then simply runs silent.
             System.err.println("Could not play " + music + ": " + e.getMessage());
             musicClip = null;
         }
