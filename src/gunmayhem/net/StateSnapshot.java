@@ -181,6 +181,28 @@ public final class StateSnapshot {
         return "";
     }
 
+    /**
+     * Run the building steps for one player on any builder. The steps are the
+     * same whichever builder is passed; only the product differs.
+     */
+    public static <T> T describe(PlayerView p, PlayerBuilder<T> builder) {
+        return builder
+            .id(p.id)
+            .name(p.name)
+            .position(p.x, p.y)
+            .facing(p.facing)
+            .damage(p.damage)
+            .lives(p.lives)
+            .kills(p.kills)
+            .alive(p.alive)
+            .weapon(p.weapon)
+            .boosted(p.boosted)
+            .tripleJump(p.tripleJump)
+            .shielded(p.shielded)
+            .moving(p.moving)
+            .build();
+    }
+
     // ---- Wire format --------------------------------------------------------
 
     public String toJson() {
@@ -191,22 +213,7 @@ public final class StateSnapshot {
 
         List<Object> ps = new ArrayList<>();
         for (PlayerView p : players) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", p.id);
-            m.put("name", p.name);
-            m.put("x", p.x);
-            m.put("y", p.y);
-            m.put("facing", p.facing);
-            m.put("damage", p.damage);
-            m.put("lives", p.lives);
-            m.put("kills", p.kills);
-            m.put("alive", p.alive);
-            m.put("weapon", p.weapon);
-            m.put("boosted", p.boosted);
-            m.put("triple", p.tripleJump);
-            m.put("shield", p.shielded);
-            m.put("moving", p.moving);
-            ps.add(m);
+            ps.add(describe(p, new PlayerJsonBuilder()));
         }
         root.put("players", ps);
 
