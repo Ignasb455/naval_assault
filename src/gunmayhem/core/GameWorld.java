@@ -239,10 +239,6 @@ public final class GameWorld {
                 p.onGround = true;
                 p.ground = plat;
                 p.jumpsLeft = p.maxJumps;
-                // Re-detected every frame the player rests here, since prevBottom
-                // stays equal to the platform top — so this is the "standing on
-                // it" hook, not just a "landed this frame" one.
-                plat.onStand(p);
                 break;
             }
         }
