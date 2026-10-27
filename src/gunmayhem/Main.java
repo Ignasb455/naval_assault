@@ -4,6 +4,7 @@ import gunmayhem.client.GameClientFacade;
 import gunmayhem.client.TestLauncher;
 import gunmayhem.core.audio.SingletonDemo;
 import gunmayhem.core.prototype.PrototypeDemo;
+import gunmayhem.net.BuilderDemo;
 import gunmayhem.net.GameServer;
 import gunmayhem.core.gamemodes.FirstToThreeKills;
 import gunmayhem.core.gamemodes.GameMode;
@@ -20,7 +21,7 @@ import java.io.IOException;
  *   java -cp out gunmayhem.Main client &lt;host&gt; [port] [nick]   join a server
  *   java -cp out gunmayhem.Main multi [n] [host] [port]        n client windows in one JVM
  *   java -cp out gunmayhem.Main                               join a server (asks host/port/nickname)
- *   java -cp out gunmayhem.Main singleton|prototype           design pattern demos
+ *   java -cp out gunmayhem.Main singleton|builder|prototype   design pattern demos
  * </pre>
  * When no nickname is given on the command line the join screen asks for one.
  * The server picks a random stage for each match unless one is named:
@@ -35,6 +36,7 @@ public final class Main {
         String mode = args.length > 0 ? args[0].toLowerCase() : "client";
         switch (mode) {
             case "singleton" -> SingletonDemo.run();
+            case "builder" -> BuilderDemo.run();
             case "prototype" -> PrototypeDemo.run();
             case "server" -> {
                 int port = args.length > 1 ? Integer.parseInt(args[1]) : GameServer.DEFAULT_PORT;
@@ -70,6 +72,7 @@ public final class Main {
                 System.err.println("  java -cp out gunmayhem.Main            (asks for host/nickname)");
                 System.err.println("  java -cp out gunmayhem.Main multi [n] [host] [port]  (n client windows at once)");
                 System.err.println("  java -cp out gunmayhem.Main singleton  (thread-safe singleton demo)");
+                System.err.println("  java -cp out gunmayhem.Main builder    (two concrete builders demo)");
                 System.err.println("  java -cp out gunmayhem.Main prototype  (shallow vs deep copy demo)");
             }
         }
