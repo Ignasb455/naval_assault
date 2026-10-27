@@ -136,3 +136,6 @@ yarn-error.log
 .project
 .metadata/
 RemoteSystemsTempFiles/
+
+# Internal report drafts and course documents (not part of the code)
+Docs/
