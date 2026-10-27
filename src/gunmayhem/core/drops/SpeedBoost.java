@@ -1,7 +1,7 @@
 package gunmayhem.core.drops;
 
-import gunmayhem.core.GameConfig;
 import gunmayhem.core.Player;
+import gunmayhem.core.drops.powerups.SpeedPowerUp;
 
 /** Power-up family, common tier: run faster until you lose a life. */
 public final class SpeedBoost implements CommonDrop {
@@ -17,6 +17,6 @@ public final class SpeedBoost implements CommonDrop {
 
     @Override
     public void applyTo(Player player) {
-        player.speedMultiplier = GameConfig.SPEED_BOOST_MULTIPLIER;
+        player.addPowerUp(new SpeedPowerUp(player.powerUps));
     }
 }

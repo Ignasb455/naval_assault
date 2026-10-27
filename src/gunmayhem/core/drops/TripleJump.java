@@ -1,7 +1,7 @@
 package gunmayhem.core.drops;
 
-import gunmayhem.core.GameConfig;
 import gunmayhem.core.Player;
+import gunmayhem.core.drops.powerups.ExtraJumpPowerUp;
 
 /** Power-up family, uncommon tier: one extra mid-air jump. */
 public final class TripleJump implements UncommonDrop {
@@ -17,7 +17,7 @@ public final class TripleJump implements UncommonDrop {
 
     @Override
     public void applyTo(Player player) {
-        player.maxJumps = GameConfig.MAX_JUMPS + 1;
+        player.addPowerUp(new ExtraJumpPowerUp(player.powerUps));
         player.jumpsLeft = player.maxJumps;
     }
 }
