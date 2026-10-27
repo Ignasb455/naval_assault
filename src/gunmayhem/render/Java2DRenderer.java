@@ -386,7 +386,7 @@ public final class Java2DRenderer implements Renderer {
             i++;
         }
         g.setColor(DIM);
-        g.drawString("A/D or ←/→ move    W or ↑ jump (x2)    F or L shoot    R rematch",
+        g.drawString("A/D or ←/→ move    W or ↑ jump (x2)    S or ↓ drop    F or L shoot    R rematch",
             margin, GameConfig.WORLD_HEIGHT - 16);
     }
 

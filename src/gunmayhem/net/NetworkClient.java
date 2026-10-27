@@ -124,6 +124,7 @@ public final class NetworkClient {
     }
 
     public void sendJump()    { send("{\"type\":\"jump\"}"); }
+    public void sendDrop()    { send("{\"type\":\"drop\"}"); }
     public void sendShoot()   { send("{\"type\":\"shoot\"}"); }
     public void sendRestart() { send("{\"type\":\"restart\"}"); }
 

@@ -73,6 +73,7 @@ windows are playable on one keyboard for testing.
 |--------|------|
 | Move | `A` / `D`  or  `←` / `→` |
 | Jump (double-jump) | `W`  or  `↑` |
+| Drop through a platform | `S`  or  `↓` |
 | Shoot | `F`  or  `L` |
 | Rematch (when the match is over) | `R` |
 

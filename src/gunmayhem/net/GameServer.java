@@ -43,7 +43,8 @@ import java.util.Map;
  *   <li>server &rarr; client: {@code {"type":"welcome","playerId":N,"name":"Alice"}}</li>
  *   <li>server &rarr; client each tick: a {@link LobbyView} or a {@link StateSnapshot}</li>
  *   <li>client &rarr; server: {@code {"type":"input","left":b,"right":b}},
- *       {@code {"type":"jump"}}, {@code {"type":"shoot"}}, {@code {"type":"restart"}}</li>
+ *       {@code {"type":"jump"}}, {@code {"type":"drop"}}, {@code {"type":"shoot"}},
+ *       {@code {"type":"restart"}}</li>
  *   <li>server &rarr; client when refused: {@code {"type":"rejected","reason":...}}</li>
  * </ul>
  */
@@ -332,6 +333,11 @@ public final class GameServer {
             case "jump" -> {
                 if (!world.isOver()) {
                     player.jump();
+                }
+            }
+            case "drop" -> {
+                if (!world.isOver()) {
+                    player.dropThrough();
                 }
             }
             case "shoot" -> {

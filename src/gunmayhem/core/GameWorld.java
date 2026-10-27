@@ -228,7 +228,13 @@ public final class GameWorld {
             return; // moving up: pass through one-way platforms
         }
         Aabb body = p.bounds();
+        if (p.droppingThrough != null && body.top() > p.droppingThrough.y()) {
+            p.droppingThrough = null; // fully below it: it is solid again
+        }
         for (Platform plat : stage.platforms()) {
+            if (plat == p.droppingThrough) {
+                continue;
+            }
             float top = plat.y();
             boolean horizontallyOver = body.right() > plat.x()
                 && body.left() < plat.x() + plat.width();

@@ -29,7 +29,7 @@ import javax.swing.Timer;
  *
  * <p>Either control scheme drives your player, so testing several windows on one
  * keyboard is fine: move {@code A/D} or {@code arrows}, jump {@code W} or
- * {@code Up}, shoot {@code F} or {@code L}, {@code R} for a rematch when over.
+ * {@code Up}, drop through a platform {@code S} or {@code Down}, shoot {@code F} or {@code L}, {@code R} for a rematch when over.
  */
 public final class NetworkGamePanel extends JPanel {
     private final NetworkClient client;
@@ -72,6 +72,7 @@ public final class NetworkGamePanel extends JPanel {
     private boolean isLeft(int c)  { return c == KeyEvent.VK_A || c == KeyEvent.VK_LEFT; }
     private boolean isRight(int c) { return c == KeyEvent.VK_D || c == KeyEvent.VK_RIGHT; }
     private boolean isJump(int c)  { return c == KeyEvent.VK_W || c == KeyEvent.VK_UP; }
+    private boolean isDrop(int c)  { return c == KeyEvent.VK_S || c == KeyEvent.VK_DOWN; }
     private boolean isShoot(int c) { return c == KeyEvent.VK_F || c == KeyEvent.VK_L; }
 
     private void onKeyDown(int code) {
@@ -79,6 +80,8 @@ public final class NetworkGamePanel extends JPanel {
         if (!isRepeat) {
             if (isJump(code)) {
                 client.sendJump();
+            } else if (isDrop(code)) {
+                client.sendDrop();
             } else if (isShoot(code)) {
                 client.sendShoot();
             } else if (code == KeyEvent.VK_R) {

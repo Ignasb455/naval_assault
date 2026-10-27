@@ -34,6 +34,11 @@ public final class Player {
     // grip the surface gives and carries the player when it moves.
     public Platform ground;
 
+    // The platform the player chose to drop through. Landing on it is skipped
+    // until the player is below it, so falling through takes no more than a
+    // key press even if the platform itself is moving down.
+    public Platform droppingThrough;
+
     // Loot-crate state. Everything here resets when the player loses a life.
     public Weapon weapon = new Pistol();
     public float speedMultiplier = 1f;
@@ -61,6 +66,16 @@ public final class Player {
 
     public Aabb bounds() {
         return new Aabb(x, y, GameConfig.PLAYER_WIDTH, GameConfig.PLAYER_HEIGHT);
+    }
+
+    /** Fall through the platform underfoot. Does nothing in the air. */
+    public void dropThrough() {
+        if (!isAlive() || ground == null) {
+            return;
+        }
+        droppingThrough = ground;
+        onGround = false;
+        ground = null;
     }
 
     /** Attempt a jump. Works from the ground or as an air (double) jump. */
@@ -143,6 +158,7 @@ public final class Player {
         this.y = y;
         onGround = false;
         ground = null;
+        droppingThrough = null;
 
         // Crate loot is lost on death.
         weapon = new Pistol();
