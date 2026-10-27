@@ -5,6 +5,9 @@ import gunmayhem.core.drops.Drop;
 import gunmayhem.core.drops.DropFactory;
 import gunmayhem.core.drops.GunDropFactory;
 import gunmayhem.core.drops.PowerUpDropFactory;
+import gunmayhem.core.events.GameObserver;
+import gunmayhem.core.events.KillTracker;
+import gunmayhem.core.events.SoundEffects;
 import gunmayhem.core.gamemodes.GameMode;
 import gunmayhem.core.gamemodes.LastManStanding;
 import gunmayhem.core.stages.Platform;
@@ -25,6 +28,10 @@ public final class GameWorld {
     private final List<LootCrate> crates = new ArrayList<>();
     private final GameMode gameMode;
     private final List<Sound> soundEvents = new ArrayList<>();
+
+    // Observer pattern: the world is the subject and tells these, in order,
+    // about shots, knockouts, crate pickups and the end of the match.
+    private final List<GameObserver> observers = new ArrayList<>();
 
     private final Random rng = new Random();
     private float crateTimer = GameConfig.CRATE_INTERVAL;
@@ -51,6 +58,24 @@ public final class GameWorld {
                 spawn[0], spawn[1]));
         }
         gameMode.configurePlayers(players);
+
+        // Every match needs these two: the kill-based modes read the kill
+        // counts, and clients expect a gunshot sound for every shot.
+        addObserver(new KillTracker());
+        addObserver(new SoundEffects(this));
+    }
+
+    public void addObserver(GameObserver observer) {
+        observers.add(observer);
+    }
+
+    public void removeObserver(GameObserver observer) {
+        observers.remove(observer);
+    }
+
+    /** The registered observers, in the order they are notified. */
+    public List<GameObserver> observers() {
+        return List.copyOf(observers);
     }
 
     public List<Player> players()     { return players; }
@@ -127,7 +152,7 @@ public final class GameWorld {
      * The abstract factory in use: pick a family (guns or power-ups) once, then
      * ask it for a rarity. The world never names a concrete drop class.
      */
-    private void spawnCrate() {
+    private LootCrate spawnCrate() {
         DropFactory factory = rng.nextBoolean()
             ? new GunDropFactory()
             : new PowerUpDropFactory();
@@ -138,7 +163,14 @@ public final class GameWorld {
                   :             factory.createRare();
 
         float x = 60f + rng.nextFloat() * (GameConfig.WORLD_WIDTH - 120f);
-        crates.add(new LootCrate(drop, x, -GameConfig.CRATE_SIZE));
+        LootCrate crate = new LootCrate(drop, x, -GameConfig.CRATE_SIZE);
+        crates.add(crate);
+        return crate;
+    }
+
+    /** Drop a random crate right now, outside the usual timer. */
+    public LootCrate dropCrate() {
+        return spawnCrate();
     }
 
     /** Stop a falling crate on the first platform top it crosses. */
@@ -171,6 +203,9 @@ public final class GameWorld {
             if (p.isAlive() && crate.bounds().intersects(p.bounds())) {
                 crate.drop.applyTo(p);
                 crate.alive = false;
+                for (GameObserver o : observers) {
+                    o.onCratePicked(p, crate.drop);
+                }
                 return;
             }
         }
@@ -284,17 +319,14 @@ public final class GameWorld {
             boolean offSide = b.right() < -GameConfig.DEATH_MARGIN
                 || b.left() > GameConfig.WORLD_WIDTH + GameConfig.DEATH_MARGIN;
             if (fell || offSide) {
-                int livesBefore = p.lives;
-                    int killerId = p.lastHitBy;
-                    // Asked now, not remembered from the start of the match:
-                    // the platform this slot spawns on may have moved since.
-                    float[] spawn = stage.spawnPoint(slot);
-                    p.loseLifeAndRespawn(spawn[0], spawn[1]);
-                    if (livesBefore > 0 && killerId >= 0) {
-                        Player killer = playerById(killerId);
-                    if (killer != null && killer != p) {
-                        killer.kills++;
-                    }
+                // Read before the respawn, which forgets who hit them last.
+                Player killer = p.lastHitBy >= 0 ? playerById(p.lastHitBy) : null;
+                // Asked now, not remembered from the start of the match:
+                // the platform this slot spawns on may have moved since.
+                float[] spawn = stage.spawnPoint(slot);
+                p.loseLifeAndRespawn(spawn[0], spawn[1]);
+                for (GameObserver o : observers) {
+                    o.onKnockout(p, killer);
                 }
             }
         }
@@ -302,15 +334,29 @@ public final class GameWorld {
 
     private void checkGameOver() {
         GameMode.GameOverResult result = gameMode.checkGameOver(players, elapsedSeconds);
-        if (result.over()) {
+        if (result.over() && !over) {
             over = true;
             winner = result.winner();
+            for (GameObserver o : observers) {
+                o.onMatchOver(winner);
+            }
         }
     }
 
-    /** Add the bullets a weapon just produced (a shotgun gives several). */
-    public void spawnBullets(List<Bullet> fired) {
-        bullets.addAll(fired);
+    /**
+     * Fire the player's weapon. The bullets it produced (a shotgun gives
+     * several) join the world; an empty list means the weapon was still
+     * cooling down, and nobody is told about a shot that did not happen.
+     */
+    public List<Bullet> fire(Player shooter) {
+        List<Bullet> fired = shooter.shoot();
+        if (!fired.isEmpty()) {
+            bullets.addAll(fired);
+            for (GameObserver o : observers) {
+                o.onShot(shooter, fired);
+            }
+        }
+        return fired;
     }
 
     /** Queue a sound for every client to play once. */

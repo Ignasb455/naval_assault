@@ -1,6 +1,5 @@
 package gunmayhem.net;
 
-import gunmayhem.core.Bullet;
 import gunmayhem.core.GameConfig;
 import gunmayhem.core.GameWorld;
 import gunmayhem.core.Player;
@@ -8,8 +7,8 @@ import gunmayhem.core.stages.Stage;
 import gunmayhem.core.stages.Stages;
 import gunmayhem.core.PlayerSpec;
 import gunmayhem.core.gamemodes.GameMode;
+import gunmayhem.core.events.MatchLog;
 import gunmayhem.core.gamemodes.LastManStanding;
-import gunmayhem.core.audio.Sound;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -246,6 +245,12 @@ public final class GameServer {
         return fixedStageId == null ? Stages.random(rng) : Stages.byId(fixedStageId);
     }
 
+    private GameWorld newWorld(List<PlayerSpec> roster, Stage stage) {
+        GameWorld w = new GameWorld(roster, stage, gameMode);
+        w.addObserver(new MatchLog(System.out)); // narrate the match on this console
+        return w;
+    }
+
     /** Caller must hold the {@code clients} lock. */
     private void startMatch() {
         List<PlayerSpec> roster = new ArrayList<>();
@@ -253,7 +258,7 @@ public final class GameServer {
             roster.add(new PlayerSpec(c.playerId(), c.name()));
         }
         Stage stage = pickStage();
-        world = new GameWorld(roster, stage, gameMode);
+        world = newWorld(roster, stage);
         phase = Phase.RUNNING;
         counting = false;
         countdown = 0f;
@@ -273,7 +278,7 @@ public final class GameServer {
                     roster.add(new PlayerSpec(c.playerId(), c.name()));
                 }
                 Stage stage = pickStage();
-                world = new GameWorld(roster, stage, gameMode);
+                world = newWorld(roster, stage);
                 System.out.println("Rematch started with " + roster.size()
                     + " players on " + stage.displayName() + ": " + names());
             } else {
@@ -342,12 +347,8 @@ public final class GameServer {
             }
             case "shoot" -> {
                 if (!world.isOver()) {
-                    // An empty list means no shot, so no sound.
-                    List<Bullet> fired = player.shoot();
-                    if (!fired.isEmpty()) {
-                        world.spawnBullets(fired);
-                        world.addSound(Sound.GUNSHOT_GLOCK_18);
-                    }
+                    // The world tells its observers; SoundEffects queues the gunshot.
+                    world.fire(player);
                 }
             }
             case "restart" -> {
