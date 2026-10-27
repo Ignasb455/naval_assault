@@ -9,6 +9,7 @@ import gunmayhem.core.PlayerSpec;
 import gunmayhem.core.gamemodes.GameMode;
 import gunmayhem.core.events.MatchLog;
 import gunmayhem.core.gamemodes.LastManStanding;
+import gunmayhem.net.commands.AdminConsole;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -62,6 +63,9 @@ public final class GameServer {
     private final java.util.Random rng = new java.util.Random();
     private final String fixedStageId;
 
+    // Command pattern: admin commands typed into this server's console.
+    private final AdminConsole adminConsole = new AdminConsole(System.out);
+
     /** Connected clients. Every field below is guarded by this list's monitor. */
     private final List<ClientHandler> clients = new ArrayList<>();
 
@@ -101,6 +105,9 @@ public final class GameServer {
                 + GameConfig.MIN_PLAYERS + "nd one connects (max "
                 + GameConfig.MAX_PLAYERS + ").");
 
+            adminConsole.listen(System.in);
+            System.out.println("Admin commands: give <slot> <weapon>, lives <slot> <n>,"
+                + " crate, undo, history");
             Thread loop = new Thread(this::gameLoop, "game-loop");
             loop.setDaemon(true);
             loop.start();
@@ -198,6 +205,7 @@ public final class GameServer {
             synchronized (clients) {
                 pruneDisconnected();
                 applyInputs();
+                adminConsole.runPending(world);
                 if (phase == Phase.LOBBY) {
                     updateLobby(dt);
                 }
