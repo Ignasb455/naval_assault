@@ -2,6 +2,8 @@ package gunmayhem.core;
 
 import gunmayhem.core.drops.Pistol;
 import gunmayhem.core.drops.Weapon;
+import gunmayhem.core.drops.powerups.NoPowerUp;
+import gunmayhem.core.drops.powerups.PowerUp;
 import gunmayhem.core.stages.Platform;
 import java.awt.Color;
 import java.util.List;
@@ -36,9 +38,15 @@ public final class Player {
 
     // Loot-crate state. Everything here resets when the player loses a life.
     public Weapon weapon = new Pistol();
+    public PowerUp powerUps = new NoPowerUp();
+
+    // Worked out by running powerUps; never set by hand.
     public float speedMultiplier = 1f;
     public int maxJumps = GameConfig.MAX_JUMPS;
-    public boolean shielded;
+    public int shieldHits;
+
+    // How many of the shieldHits have been used up this life.
+    public int hitsAbsorbed;
 
     // Input intent for the current frame, set by the server from the owning
     // client's input messages.
@@ -57,6 +65,17 @@ public final class Player {
 
     public boolean isAlive() {
         return lives > 0;
+    }
+
+    /** True while at least one collected shield has not been used up. */
+    public boolean hasShield() {
+        return hitsAbsorbed < shieldHits;
+    }
+
+    /** Replace the power-up stack with one that wraps it, and run it. */
+    public void addPowerUp(PowerUp stack) {
+        powerUps = stack;
+        powerUps.givePower(this);
     }
 
     public Aabb bounds() {
@@ -92,8 +111,8 @@ public final class Player {
      * than a pistol round.
      */
     public void takeHit(int fromDirectionX, BulletSpec spec) {
-        if (shielded) {
-            shielded = false; // the shield swallows exactly one hit
+        if (hasShield()) {
+            hitsAbsorbed++; // each shield swallows exactly one hit
             return;
         }
         float impulse = spec.knockback + damage * GameConfig.KNOCKBACK_PER_DAMAGE;
@@ -146,9 +165,8 @@ public final class Player {
 
         // Crate loot is lost on death.
         weapon = new Pistol();
-        speedMultiplier = 1f;
-        maxJumps = GameConfig.MAX_JUMPS;
-        shielded = false;
+        addPowerUp(new NoPowerUp());
+        hitsAbsorbed = 0;
         jumpsLeft = maxJumps;
     }
 }

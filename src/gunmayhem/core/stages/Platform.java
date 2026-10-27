@@ -1,13 +1,11 @@
 package gunmayhem.core.stages;
 
 import gunmayhem.core.Aabb;
-import gunmayhem.core.Player;
 
 /**
  * Product of the {@link Stage} factory method: a one-way platform. Players rise
  * through it from below and land on the top surface; the concrete material
- * decides how much grip the surface gives, whether it travels, and what happens
- * to whoever is standing on it.
+ * decides how much grip the surface gives and whether it travels.
  *
  * <p>
  * Only universally relevant operations belong here — the landing resolution

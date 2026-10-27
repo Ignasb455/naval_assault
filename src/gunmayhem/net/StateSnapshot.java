@@ -149,7 +149,7 @@ public final class StateSnapshot {
                 .weapon(p.weapon.name())
                 .boosted(p.speedMultiplier > 1f)
                 .tripleJump(p.maxJumps > GameConfig.MAX_JUMPS)
-                .shielded(p.shielded)
+                .shielded(p.hasShield())
                 .moving(Math.abs(p.vx) > 1f)
                 .build());
         }
