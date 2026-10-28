@@ -14,10 +14,12 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import gunmayhem.ui.controls.Controls;
+import gunmayhem.ui.controls.KeyboardControls;
+import gunmayhem.ui.controls.Mouse;
+import gunmayhem.ui.controls.MouseControlsAdapter;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.util.HashSet;
-import java.util.Set;
 import javax.swing.JPanel;
 import javax.swing.Timer;
 
@@ -27,37 +29,52 @@ import javax.swing.Timer;
  * during it — and forwards this player's input. It runs no simulation, so there
  * is no way for two clients to disagree about the game state.
  *
- * <p>Either control scheme drives your player, so testing several windows on one
- * keyboard is fine: move {@code A/D} or {@code arrows}, jump {@code W} or
- * {@code Up}, drop through a platform {@code S} or {@code Down}, shoot {@code F} or {@code L}, {@code R} for a rematch when over.
+ * <p>The player is driven through {@link Controls}, asked once per frame: the
+ * keyboard directly, or the mouse through {@link MouseControlsAdapter}. The
+ * panel never sees a key code or a mouse button. {@code R} asks for a rematch
+ * when the match is over, whichever controls are in use.
  */
 public final class NetworkGamePanel extends JPanel {
     private final NetworkClient client;
     private final Renderer renderer = new Java2DRenderer();
-    private final Set<Integer> held = new HashSet<>();
+    private final Controls controls;
     private final Timer repaintTimer;
     private boolean lastLeft;
     private boolean lastRight;
 
-    public NetworkGamePanel(NetworkClient client) {
+    public NetworkGamePanel(NetworkClient client, boolean mouseControls) {
         this.client = client;
         setPreferredSize(new Dimension(GameConfig.WORLD_WIDTH, GameConfig.WORLD_HEIGHT));
         setFocusable(true);
         setDoubleBuffered(true);
         setBackground(new Color(24, 26, 38));
 
+        if (mouseControls) {
+            Mouse mouse = new Mouse();
+            addMouseListener(mouse);
+            addMouseMotionListener(mouse);
+            controls = new MouseControlsAdapter(mouse, this::ownPlayerCenterX);
+        } else {
+            KeyboardControls keyboard = new KeyboardControls();
+            addKeyListener(keyboard);
+            addFocusListener(new FocusAdapter() {
+                @Override public void focusLost(FocusEvent e) { keyboard.releaseAll(); }
+            });
+            controls = keyboard;
+        }
+
         addKeyListener(new KeyAdapter() {
-            @Override public void keyPressed(KeyEvent e) { onKeyDown(e.getKeyCode()); }
-            @Override public void keyReleased(KeyEvent e) { onKeyUp(e.getKeyCode()); }
+            @Override public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_R) {
+                    client.sendRestart();
+                }
+            }
         });
 
-        // Without this, keys held when the window loses focus never produce a
-        // release event and the player runs off the stage on their own.
-        addFocusListener(new FocusAdapter() {
-            @Override public void focusLost(FocusEvent e) { releaseAllKeys(); }
+        repaintTimer = new Timer(16, e -> {
+            pollControls();
+            repaint();
         });
-
-        repaintTimer = new Timer(16, e -> repaint());
         repaintTimer.start();
     }
 
@@ -69,46 +86,42 @@ public final class NetworkGamePanel extends JPanel {
         repaintTimer.stop();
     }
 
-    private boolean isLeft(int c)  { return c == KeyEvent.VK_A || c == KeyEvent.VK_LEFT; }
-    private boolean isRight(int c) { return c == KeyEvent.VK_D || c == KeyEvent.VK_RIGHT; }
-    private boolean isJump(int c)  { return c == KeyEvent.VK_W || c == KeyEvent.VK_UP; }
-    private boolean isDrop(int c)  { return c == KeyEvent.VK_S || c == KeyEvent.VK_DOWN; }
-    private boolean isShoot(int c) { return c == KeyEvent.VK_F || c == KeyEvent.VK_L; }
-
-    private void onKeyDown(int code) {
-        boolean isRepeat = !held.add(code);
-        if (!isRepeat) {
-            if (isJump(code)) {
-                client.sendJump();
-            } else if (isDrop(code)) {
-                client.sendDrop();
-            } else if (isShoot(code)) {
-                client.sendShoot();
-            } else if (code == KeyEvent.VK_R) {
-                client.sendRestart();
-            }
-        }
-        sendMovementIfChanged();
-    }
-
-    private void onKeyUp(int code) {
-        held.remove(code);
-        sendMovementIfChanged();
-    }
-
-    private void releaseAllKeys() {
-        held.clear();
-        sendMovementIfChanged();
-    }
-
-    private void sendMovementIfChanged() {
-        boolean left = held.stream().anyMatch(this::isLeft);
-        boolean right = held.stream().anyMatch(this::isRight);
+    /**
+     * Ask the controls what the player wants and forward it. Done every frame,
+     * not on input events: with the mouse the direction changes as the player
+     * runs past the cursor, without any event at all.
+     */
+    private void pollControls() {
+        boolean left = controls.left();
+        boolean right = controls.right();
         if (left != lastLeft || right != lastRight) {
             lastLeft = left;
             lastRight = right;
             client.sendInput(left, right);
         }
+        if (controls.takeJump()) {
+            client.sendJump();
+        }
+        if (controls.takeDrop()) {
+            client.sendDrop();
+        }
+        if (controls.takeShoot()) {
+            client.sendShoot();
+        }
+    }
+
+    /** Where this client's player is drawn, or NaN when it has none on screen. */
+    private double ownPlayerCenterX() {
+        StateSnapshot state = client.latest();
+        if (!client.isInMatch() || state == null) {
+            return Double.NaN;
+        }
+        for (StateSnapshot.PlayerView p : state.players) {
+            if (p.id == client.playerId() && p.alive) {
+                return p.x + GameConfig.PLAYER_WIDTH / 2f;
+            }
+        }
+        return Double.NaN;
     }
 
     @Override

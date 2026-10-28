@@ -46,7 +46,8 @@ public final class GameClientFacade {
     private boolean closed;
 
     public GameClientFacade(String host, int port, String nickname) {
-        this.settings = new ConnectDialog.Settings(host, port, nickname);
+        // Keyboard unless the join screen is shown and the player picks the mouse.
+        this.settings = new ConnectDialog.Settings(host, port, nickname, false);
     }
 
     /** Place the window here instead of centring it. Used when tiling several. */
@@ -105,7 +106,7 @@ public final class GameClientFacade {
     /** Subsystem step: build the window around the connected client. */
     public void openWindow() {
         onSwingThread(() -> {
-            panel = new NetworkGamePanel(client);
+            panel = new NetworkGamePanel(client, settings.mouseControls());
             frame = new JFrame("Gun Mayhem — " + settings.nickname()
                 + " @ " + settings.host() + ":" + settings.port());
             // Never EXIT_ON_CLOSE: with several windows open that would take the
