@@ -147,9 +147,9 @@ public final class StateSnapshot {
                 .kills(p.kills)
                 .alive(p.isAlive())
                 .weapon(p.weapon.name())
-                .boosted(p.speedMultiplier > 1f)
-                .tripleJump(p.maxJumps > GameConfig.MAX_JUMPS)
-                .shielded(p.hasShield())
+                .boosted(p.stats.speedMultiplier() > 1f)
+                .tripleJump(p.stats.maxJumps() > GameConfig.MAX_JUMPS)
+                .shielded(p.stats.hasShield())
                 .moving(Math.abs(p.vx) > 1f)
                 .build());
         }

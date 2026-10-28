@@ -226,7 +226,7 @@ public final class GameWorld {
         // Horizontal: direct control at normal speeds; while being knocked back
         // (moving faster than run speed) let the impulse decay with friction, so
         // hits actually throw the player Gun-Mayhem style.
-        float runSpeed = GameConfig.MOVE_SPEED * p.speedMultiplier;
+        float runSpeed = GameConfig.MOVE_SPEED * p.stats.speedMultiplier();
         if (Math.abs(p.vx) <= runSpeed + 1f) {
             // Approach the intended speed at the rate the surface allows. Solid
             // ground clamps to 1 and so is instant, exactly as before; ice takes
@@ -279,7 +279,7 @@ public final class GameWorld {
                 p.vy = 0;
                 p.onGround = true;
                 p.ground = plat;
-                p.jumpsLeft = p.maxJumps;
+                p.jumpsLeft = p.stats.maxJumps();
                 break;
             }
         }

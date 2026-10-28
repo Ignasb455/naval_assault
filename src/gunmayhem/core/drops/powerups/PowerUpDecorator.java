@@ -1,24 +1,35 @@
 package gunmayhem.core.drops.powerups;
 
-import gunmayhem.core.Player;
+import gunmayhem.core.PlayerStats;
 
 /**
- * A power-up layered on top of the ones collected before it. The layers
- * beneath always run first; subclasses only supply their own bonus.
+ * A power-up wrapped around the player's current stats. Every call is passed
+ * on to the wrapped object; subclasses override only the value they change.
  */
-public abstract class PowerUpDecorator implements PowerUp {
-    private final PowerUp inner;
+public abstract class PowerUpDecorator implements PlayerStats {
+    protected final PlayerStats inner;
 
-    protected PowerUpDecorator(PowerUp inner) {
+    protected PowerUpDecorator(PlayerStats inner) {
         this.inner = inner;
     }
 
     @Override
-    public final void givePower(Player player) {
-        inner.givePower(player);
-        addPower(player);
+    public float speedMultiplier() {
+        return inner.speedMultiplier();
     }
 
-    /** This layer's bonus, applied after everything beneath it. */
-    protected abstract void addPower(Player player);
+    @Override
+    public int maxJumps() {
+        return inner.maxJumps();
+    }
+
+    @Override
+    public boolean absorbHit() {
+        return inner.absorbHit();
+    }
+
+    @Override
+    public boolean hasShield() {
+        return inner.hasShield();
+    }
 }

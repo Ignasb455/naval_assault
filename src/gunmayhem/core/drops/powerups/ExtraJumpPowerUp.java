@@ -1,15 +1,15 @@
 package gunmayhem.core.drops.powerups;
 
-import gunmayhem.core.Player;
+import gunmayhem.core.PlayerStats;
 
 /** One more mid-air jump per layer. */
 public final class ExtraJumpPowerUp extends PowerUpDecorator {
-    public ExtraJumpPowerUp(PowerUp inner) {
+    public ExtraJumpPowerUp(PlayerStats inner) {
         super(inner);
     }
 
     @Override
-    protected void addPower(Player player) {
-        player.maxJumps += 1;
+    public int maxJumps() {
+        return inner.maxJumps() + 1;
     }
 }

@@ -17,6 +17,6 @@ public final class Shield implements RareDrop {
 
     @Override
     public void applyTo(Player player) {
-        player.addPowerUp(new ShieldPowerUp(player.powerUps));
+        player.stats = new ShieldPowerUp(player.stats);
     }
 }
