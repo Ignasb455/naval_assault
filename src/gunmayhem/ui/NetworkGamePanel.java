@@ -1,21 +1,27 @@
 package gunmayhem.ui;
 
 import gunmayhem.core.GameConfig;
+import gunmayhem.core.audio.AudioManager;
 import gunmayhem.net.LobbyView;
 import gunmayhem.net.NetworkClient;
 import gunmayhem.net.StateSnapshot;
 import gunmayhem.render.Java2DRenderer;
 import gunmayhem.render.Renderer;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.HashSet;
 import java.util.Set;
 import javax.swing.JPanel;
@@ -30,12 +36,16 @@ import javax.swing.Timer;
  * <p>Either control scheme drives your player, so testing several windows on one
  * keyboard is fine: move {@code A/D} or {@code arrows}, jump {@code W} or
  * {@code Up}, drop through a platform {@code S} or {@code Down}, shoot {@code F} or {@code L}, {@code R} for a rematch when over.
+ * The speaker button in the bottom-right corner (or {@code M}) toggles audio, which starts muted.
  */
 public final class NetworkGamePanel extends JPanel {
     private final NetworkClient client;
     private final Renderer renderer = new Java2DRenderer();
     private final Set<Integer> held = new HashSet<>();
     private final Timer repaintTimer;
+    /** Drawn by hand rather than a JButton, so clicking it never steals keyboard focus. */
+    private final Rectangle muteButton = new Rectangle(
+        GameConfig.WORLD_WIDTH - 52, GameConfig.WORLD_HEIGHT - 44, 40, 32);
     private boolean lastLeft;
     private boolean lastRight;
 
@@ -49,6 +59,16 @@ public final class NetworkGamePanel extends JPanel {
         addKeyListener(new KeyAdapter() {
             @Override public void keyPressed(KeyEvent e) { onKeyDown(e.getKeyCode()); }
             @Override public void keyReleased(KeyEvent e) { onKeyUp(e.getKeyCode()); }
+        });
+
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                requestFocusInWindow();
+                if (muteButton.contains(e.getPoint())) {
+                    AudioManager.getInstance().toggleMuted();
+                }
+            }
         });
 
         // Without this, keys held when the window loses focus never produce a
@@ -86,6 +106,8 @@ public final class NetworkGamePanel extends JPanel {
                 client.sendShoot();
             } else if (code == KeyEvent.VK_R) {
                 client.sendRestart();
+            } else if (code == KeyEvent.VK_M) {
+                AudioManager.getInstance().toggleMuted();
             }
         }
         sendMovementIfChanged();
@@ -134,6 +156,36 @@ public final class NetworkGamePanel extends JPanel {
             drawStatus(g2, client.isConnected()
                 ? "Connecting to server..." : "Disconnected from server.", "");
         }
+        drawMuteButton(g2);
+    }
+
+    /** A small speaker; crossed out while muted. */
+    private void drawMuteButton(Graphics2D g) {
+        boolean muted = AudioManager.getInstance().isMuted();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        int x = muteButton.x;
+        int y = muteButton.y;
+
+        g.setColor(new Color(255, 255, 255, 30));
+        g.fillRoundRect(x, y, muteButton.width, muteButton.height, 8, 8);
+        g.setColor(new Color(180, 186, 210));
+        g.drawRoundRect(x, y, muteButton.width, muteButton.height, 8, 8);
+
+        // Speaker body and cone.
+        g.fillRect(x + 8, y + 12, 5, 8);
+        g.fillPolygon(new int[] {x + 13, x + 20, x + 20, x + 13},
+            new int[] {y + 12, y + 6, y + 26, y + 20}, 4);
+
+        g.setStroke(new BasicStroke(2f));
+        if (muted) {
+            g.setColor(new Color(255, 99, 71));
+            g.drawLine(x + 24, y + 11, x + 32, y + 21);
+            g.drawLine(x + 32, y + 11, x + 24, y + 21);
+        } else {
+            g.drawArc(x + 16, y + 10, 10, 12, -50, 100);
+            g.drawArc(x + 16, y + 5, 18, 22, -50, 100);
+        }
+        g.setStroke(new BasicStroke(1f));
     }
 
     private void drawYouTag(Graphics2D g) {

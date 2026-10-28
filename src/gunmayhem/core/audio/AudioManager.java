@@ -34,6 +34,12 @@ public final class AudioManager {
 
     private Clip musicClip;
 
+    /** Track that should loop while unmuted; kept so unmuting can resume it. */
+    private Music currentMusic;
+
+    /** Audio starts off; the player turns it on with the on-screen button. */
+    private volatile boolean muted = true;
+
     /** For singleton constructor should be private so nobody uses "new" and does not create new objects */
     private AudioManager() {
     }
@@ -47,6 +53,9 @@ public final class AudioManager {
 
     /** Play a one-shot effect. Returns immediately; the sound starts on the audio thread. */
     public void playSound(Sound sound) {
+        if (muted) {
+            return;
+        }
         effects.execute(() -> start(sound));
     }
 
@@ -119,6 +128,14 @@ public final class AudioManager {
     /** Start a looping background track, replacing whatever was playing. */
     public synchronized void playMusic(Music music) {
         stopMusic();
+        currentMusic = music;
+        if (muted) {
+            return; // remembered, starts once unmuted
+        }
+        startMusic(music);
+    }
+
+    private void startMusic(Music music) {
         String filename = music.getFilename();
         URL url = AudioManager.class.getResource(filename);
 
@@ -145,10 +162,36 @@ public final class AudioManager {
     }
 
     public synchronized void stopMusic() {
+        currentMusic = null;
+        closeMusicClip();
+    }
+
+    private void closeMusicClip() {
         if (musicClip != null) {
             musicClip.stop();
             musicClip.close();
             musicClip = null;
         }
+    }
+
+    public boolean isMuted() {
+        return muted;
+    }
+
+    /** Silence everything, or bring back sounds and the current music track. */
+    public synchronized void setMuted(boolean muted) {
+        if (this.muted == muted) {
+            return;
+        }
+        this.muted = muted;
+        if (muted) {
+            closeMusicClip();
+        } else if (currentMusic != null) {
+            startMusic(currentMusic);
+        }
+    }
+
+    public void toggleMuted() {
+        setMuted(!muted);
     }
 }
