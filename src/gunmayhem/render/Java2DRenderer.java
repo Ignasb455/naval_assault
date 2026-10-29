@@ -4,6 +4,9 @@ import gunmayhem.core.GameConfig;
 import gunmayhem.core.PlayerStyle;
 import gunmayhem.net.LobbyView;
 import gunmayhem.net.StateSnapshot;
+import gunmayhem.render.overlay.GameOverOverlay;
+import gunmayhem.render.overlay.Java2DDrawingBackend;
+import gunmayhem.render.overlay.LobbyStatusOverlay;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
@@ -44,8 +47,6 @@ public final class Java2DRenderer implements Renderer {
     private final Font hudFont = new Font("Monospaced", Font.BOLD, 13);
     private final Font nameFont = new Font("SansSerif", Font.BOLD, 13);
     private final Font titleFont = new Font("SansSerif", Font.BOLD, 40);
-    private final Font bigFont = new Font("SansSerif", Font.BOLD, 44);
-    private final Font countdownFont = new Font("SansSerif", Font.BOLD, 92);
     private final Font seatFont = new Font("SansSerif", Font.BOLD, 18);
 
     @Override
@@ -58,7 +59,7 @@ public final class Java2DRenderer implements Renderer {
         drawHud(g, state);
 
         if (state.over) {
-            drawGameOver(g, state);
+            new GameOverOverlay(new Java2DDrawingBackend(g)).draw(state);
         }
     }
 
@@ -74,27 +75,7 @@ public final class Java2DRenderer implements Renderer {
         g.setFont(titleFont);
         centerString(g, "GUN MAYHEM", 108);
 
-        // Caption, big number and hint always sit at the same three baselines, so
-        // nothing jumps around when the countdown starts.
-        g.setFont(nameFont);
-        g.setColor(MUTED);
-        centerString(g, lobby.counting ? "MATCH STARTS IN" : "WAITING FOR PLAYERS", 158);
-
-        g.setFont(countdownFont);
-        if (lobby.counting) {
-            // The countdown is the server's clock, so every client shows the same
-            // number; it turns red for the last five seconds.
-            int seconds = lobby.displaySeconds();
-            g.setColor(seconds <= 5 ? new Color(255, 99, 71) : Color.WHITE);
-            centerString(g, Integer.toString(seconds), 252);
-        } else {
-            g.setColor(new Color(255, 255, 255, 55));
-            centerString(g, Integer.toString((int) GameConfig.LOBBY_COUNTDOWN_SECONDS), 252);
-        }
-
-        g.setFont(nameFont);
-        g.setColor(MUTED);
-        centerString(g, lobbyHint(lobby), 290);
+        new LobbyStatusOverlay(new Java2DDrawingBackend(g)).draw(lobby);
 
         drawSeats(g, lobby, myPlayerId);
 
@@ -103,22 +84,6 @@ public final class Java2DRenderer implements Renderer {
         centerString(g, "Minimum " + lobby.minPlayers + " players, maximum " + lobby.maxPlayers
             + " \u2014 once the countdown ends nobody else may join",
             GameConfig.WORLD_HEIGHT - 24);
-    }
-
-    private String lobbyHint(LobbyView lobby) {
-        if (lobby.counting) {
-            boolean full = lobby.seats.size() >= lobby.maxPlayers;
-            return full
-                ? "Lobby full (" + lobby.seats.size() + "/" + lobby.maxPlayers
-                  + ") \u2014 no more players can join"
-                : "Others can still join until it hits zero  ("
-                  + lobby.seats.size() + "/" + lobby.maxPlayers + " players)";
-        }
-        int missing = lobby.minPlayers - lobby.seats.size();
-        return missing > 0
-            ? "Need " + missing + " more player" + (missing == 1 ? "" : "s")
-              + " to start the " + (int) GameConfig.LOBBY_COUNTDOWN_SECONDS + "s countdown"
-            : "Starting shortly...";
     }
 
     private void drawSeats(Graphics2D g, LobbyView lobby, int myPlayerId) {
@@ -403,21 +368,6 @@ public final class Java2DRenderer implements Renderer {
             sb.append("  +SHLD");
         }
         return sb.toString();
-    }
-
-    private void drawGameOver(Graphics2D g, StateSnapshot state) {
-        g.setColor(new Color(0, 0, 0, 160));
-        g.fillRect(0, 0, GameConfig.WORLD_WIDTH, GameConfig.WORLD_HEIGHT);
-
-        String winner = state.nameOf(state.winnerId);
-        String text = state.winnerId >= 0 && !winner.isEmpty() ? winner + " WINS!" : "DRAW";
-        g.setFont(bigFont);
-        g.setColor(state.winnerId >= 0 ? PlayerStyle.color(state.winnerId) : Color.WHITE);
-        centerString(g, text, GameConfig.WORLD_HEIGHT / 2 - 8);
-
-        g.setFont(hudFont);
-        g.setColor(Color.WHITE);
-        centerString(g, "Press R for a rematch", GameConfig.WORLD_HEIGHT / 2 + 30);
     }
 
     // ---- Small helpers ------------------------------------------------------
