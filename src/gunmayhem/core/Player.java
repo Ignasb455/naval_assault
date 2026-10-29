@@ -2,11 +2,10 @@ package gunmayhem.core;
 
 import gunmayhem.core.drops.Pistol;
 import gunmayhem.core.drops.Weapon;
-import gunmayhem.core.drops.powerups.NoPowerUp;
-import gunmayhem.core.drops.powerups.PowerUp;
 import gunmayhem.core.stages.Platform;
 import java.awt.Color;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * A controllable character. Holds physics state (position/velocity), the
@@ -26,11 +25,13 @@ public final class Player {
     public int lives = GameConfig.START_LIVES;
     public int kills;
     public int lastHitBy = -1;
-    public float damage;               // grows on hits, scales knockback
-    public int facing = 1;             // +1 right, -1 left
+    public float damage; // grows on hits, scales knockback
+    public int facing = 1; // +1 right, -1 left
 
     public boolean onGround;
-    public int jumpsLeft = GameConfig.MAX_JUMPS;
+    // Jumps made since last touching the ground. How many are allowed comes
+    // from stats, so a power-up picked up mid-air counts straight away.
+    public int jumpsUsed;
 
     // The platform currently underfoot, or null in the air. It decides how much
     // grip the surface gives and carries the player when it moves.
@@ -43,15 +44,10 @@ public final class Player {
 
     // Loot-crate state. Everything here resets when the player loses a life.
     public Weapon weapon = new Pistol();
-    public PowerUp powerUps = new NoPowerUp();
 
-    // Worked out by running powerUps; never set by hand.
-    public float speedMultiplier = 1f;
-    public int maxJumps = GameConfig.MAX_JUMPS;
-    public int shieldHits;
-
-    // How many of the shieldHits have been used up this life.
-    public int hitsAbsorbed;
+    // Base stats wrapped in every power-up collected this life, the newest
+    // outermost. Only addPowerUp and a respawn change it.
+    private PlayerStats stats = new BaseStats();
 
     // Input intent for the current frame, set by the server from the owning
     // client's input messages.
@@ -72,15 +68,18 @@ public final class Player {
         return lives > 0;
     }
 
-    /** True while at least one collected shield has not been used up. */
-    public boolean hasShield() {
-        return hitsAbsorbed < shieldHits;
+    /** Ask this for anything a power-up can change. */
+    public PlayerStats stats() {
+        return stats;
     }
 
-    /** Replace the power-up stack with one that wraps it, and run it. */
-    public void addPowerUp(PowerUp stack) {
-        powerUps = stack;
-        powerUps.givePower(this);
+    /**
+     * Wrap the current stats in one more power-up, e.g.
+     * {@code addPowerUp(SpeedPowerUp::new)}. The player does the wrapping, so
+     * a caller can only add a layer, never replace the chain.
+     */
+    public void addPowerUp(Function<PlayerStats, PlayerStats> powerUp) {
+        stats = powerUp.apply(stats);
     }
 
     public Aabb bounds() {
@@ -99,11 +98,11 @@ public final class Player {
 
     /** Attempt a jump. Works from the ground or as an air (double) jump. */
     public void jump() {
-        if (!isAlive() || jumpsLeft <= 0) {
+        if (!isAlive() || jumpsUsed >= stats.maxJumps()) {
             return;
         }
         vy = -GameConfig.JUMP_SPEED;
-        jumpsLeft--;
+        jumpsUsed++;
         onGround = false;
         ground = null;
     }
@@ -126,8 +125,7 @@ public final class Player {
      * than a pistol round.
      */
     public void takeHit(int fromDirectionX, BulletSpec spec) {
-        if (hasShield()) {
-            hitsAbsorbed++; // each shield swallows exactly one hit
+        if (stats.absorbHit()) {
             return;
         }
         float impulse = spec.knockback + damage * GameConfig.KNOCKBACK_PER_DAMAGE;
@@ -181,8 +179,7 @@ public final class Player {
 
         // Crate loot is lost on death.
         weapon = new Pistol();
-        addPowerUp(new NoPowerUp());
-        hitsAbsorbed = 0;
-        jumpsLeft = maxJumps;
+        stats = new BaseStats();
+        jumpsUsed = 0;
     }
 }

@@ -7,6 +7,7 @@ import java.awt.Font;
 import java.awt.GridLayout;
 import java.lang.reflect.InvocationTargetException;
 import javax.swing.BorderFactory;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -16,15 +17,15 @@ import javax.swing.event.AncestorEvent;
 import javax.swing.event.AncestorListener;
 
 /**
- * The join screen: asks which server to connect to and what nickname the player
- * wants to use. Shown before the socket is opened, so the nickname can travel
+ * The join screen: asks which server to connect to, what nickname the player
+ * wants to use, and whether they play with the keyboard or the mouse. Shown before the socket is opened, so the nickname can travel
  * with the very first message the client sends.
  */
 public final class ConnectDialog {
     private ConnectDialog() { }
 
     /** What the player typed on the join screen. */
-    public record Settings(String host, int port, String nickname) { }
+    public record Settings(String host, int port, String nickname, boolean mouseControls) { }
 
     /** Show the dialog (from any thread) and return the settings, or null if cancelled. */
     public static Settings prompt(Settings initial, String errorMessage) {
@@ -59,6 +60,9 @@ public final class ConnectDialog {
             @Override public void ancestorMoved(AncestorEvent e) { }
         });
 
+        JComboBox<String> controls = new JComboBox<>(new String[] {"Keyboard", "Mouse"});
+        controls.setSelectedIndex(initial.mouseControls() ? 1 : 0);
+
         JLabel message = new JLabel();
         message.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
 
@@ -69,11 +73,16 @@ public final class ConnectDialog {
         fields.add(host);
         fields.add(new JLabel("Port:"));
         fields.add(port);
+        fields.add(new JLabel("Controls:"));
+        fields.add(controls);
 
         JLabel hint = new JLabel("<html><br>The match starts "
             + (int) GameConfig.LOBBY_COUNTDOWN_SECONDS + " seconds after the "
             + GameConfig.MIN_PLAYERS + "nd player connects.<br>Up to "
-            + GameConfig.MAX_PLAYERS + " players; nobody may join once it begins.</html>");
+            + GameConfig.MAX_PLAYERS + " players; nobody may join once it begins.<br><br>"
+            + "Keyboard: A/D or arrows move, W jumps, S drops, F shoots.<br>"
+            + "Mouse: run towards the cursor, left click shoots, right click jumps,<br>"
+            + "middle click drops. R asks for a rematch either way.</html>");
         hint.setFont(hint.getFont().deriveFont(Font.PLAIN, 11f));
         hint.setForeground(new Color(90, 95, 110));
 
@@ -121,7 +130,8 @@ public final class ConnectDialog {
                 error = "The port must be between 1 and 65535.";
                 continue;
             }
-            return new Settings(chosenHost, chosenPort, chosenName);
+            return new Settings(chosenHost, chosenPort, chosenName,
+                controls.getSelectedIndex() == 1);
         }
     }
 

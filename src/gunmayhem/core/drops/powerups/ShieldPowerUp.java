@@ -1,18 +1,29 @@
 package gunmayhem.core.drops.powerups;
 
-import gunmayhem.core.Player;
+import gunmayhem.core.PlayerStats;
 
 /**
- * One more hit the player can swallow. The layer only counts shields; the
- * player keeps track of how many it has already used up.
+ * Swallows one hit. Once spent it passes hits on to whatever it wraps, so
+ * stacked shields are used up one at a time, outermost first.
  */
 public final class ShieldPowerUp extends PowerUpDecorator {
-    public ShieldPowerUp(PowerUp inner) {
+    private boolean spent;
+
+    public ShieldPowerUp(PlayerStats inner) {
         super(inner);
     }
 
     @Override
-    protected void addPower(Player player) {
-        player.shieldHits += 1;
+    public boolean absorbHit() {
+        if (!spent) {
+            spent = true;
+            return true;
+        }
+        return inner.absorbHit();
+    }
+
+    @Override
+    public boolean hasShield() {
+        return !spent || inner.hasShield();
     }
 }
