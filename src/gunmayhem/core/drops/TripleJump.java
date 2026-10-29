@@ -17,7 +17,6 @@ public final class TripleJump implements UncommonDrop {
 
     @Override
     public void applyTo(Player player) {
-        player.stats = new ExtraJumpPowerUp(player.stats);
-        player.jumpsLeft = player.stats.maxJumps();
+        player.addPowerUp(ExtraJumpPowerUp::new);
     }
 }

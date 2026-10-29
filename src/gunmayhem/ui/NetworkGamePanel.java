@@ -1,25 +1,31 @@
 package gunmayhem.ui;
 
 import gunmayhem.core.GameConfig;
+import gunmayhem.core.audio.AudioManager;
 import gunmayhem.net.LobbyView;
 import gunmayhem.net.NetworkClient;
 import gunmayhem.net.StateSnapshot;
 import gunmayhem.render.Java2DRenderer;
 import gunmayhem.render.Renderer;
+import gunmayhem.ui.controls.Controls;
+import gunmayhem.ui.controls.KeyboardControls;
+import gunmayhem.ui.controls.Mouse;
+import gunmayhem.ui.controls.MouseControlsAdapter;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
-import gunmayhem.ui.controls.Controls;
-import gunmayhem.ui.controls.KeyboardControls;
-import gunmayhem.ui.controls.Mouse;
-import gunmayhem.ui.controls.MouseControlsAdapter;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import javax.swing.JPanel;
 import javax.swing.Timer;
 
@@ -32,13 +38,17 @@ import javax.swing.Timer;
  * <p>The player is driven through {@link Controls}, asked once per frame: the
  * keyboard directly, or the mouse through {@link MouseControlsAdapter}. The
  * panel never sees a key code or a mouse button. {@code R} asks for a rematch
- * when the match is over, whichever controls are in use.
+ * when the match is over, whichever controls are in use. The speaker button in
+ * the bottom-right corner (or {@code M}) toggles audio, which starts muted.
  */
 public final class NetworkGamePanel extends JPanel {
     private final NetworkClient client;
     private final Renderer renderer = new Java2DRenderer();
     private final Controls controls;
     private final Timer repaintTimer;
+    /** Drawn by hand rather than a JButton, so clicking it never steals keyboard focus. */
+    private final Rectangle muteButton = new Rectangle(
+        GameConfig.WORLD_WIDTH - 52, GameConfig.WORLD_HEIGHT - 44, 40, 32);
     private boolean lastLeft;
     private boolean lastRight;
 
@@ -49,9 +59,8 @@ public final class NetworkGamePanel extends JPanel {
         setDoubleBuffered(true);
         setBackground(new Color(24, 26, 38));
 
-        if (mouseControls) {
-            Mouse mouse = new Mouse();
-            addMouseListener(mouse);
+        Mouse mouse = mouseControls ? new Mouse() : null;
+        if (mouse != null) {
             addMouseMotionListener(mouse);
             controls = new MouseControlsAdapter(mouse, this::ownPlayerCenterX);
         } else {
@@ -63,10 +72,41 @@ public final class NetworkGamePanel extends JPanel {
             controls = keyboard;
         }
 
+        // Keys that are not player controls, so they work with either scheme.
         addKeyListener(new KeyAdapter() {
             @Override public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_R) {
                     client.sendRestart();
+                } else if (e.getKeyCode() == KeyEvent.VK_M) {
+                    AudioManager.getInstance().toggleMuted();
+                }
+            }
+        });
+
+        // The panel sees clicks first: one on the mute button is not passed on
+        // to the mouse controls, or toggling audio would also fire a shot.
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                requestFocusInWindow();
+                if (muteButton.contains(e.getPoint())) {
+                    AudioManager.getInstance().toggleMuted();
+                } else if (mouse != null) {
+                    mouse.mousePressed(e);
+                }
+            }
+
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                if (mouse != null) {
+                    mouse.mouseEntered(e);
+                }
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                if (mouse != null) {
+                    mouse.mouseExited(e);
                 }
             }
         });
@@ -147,6 +187,36 @@ public final class NetworkGamePanel extends JPanel {
             drawStatus(g2, client.isConnected()
                 ? "Connecting to server..." : "Disconnected from server.", "");
         }
+        drawMuteButton(g2);
+    }
+
+    /** A small speaker; crossed out while muted. */
+    private void drawMuteButton(Graphics2D g) {
+        boolean muted = AudioManager.getInstance().isMuted();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        int x = muteButton.x;
+        int y = muteButton.y;
+
+        g.setColor(new Color(255, 255, 255, 30));
+        g.fillRoundRect(x, y, muteButton.width, muteButton.height, 8, 8);
+        g.setColor(new Color(180, 186, 210));
+        g.drawRoundRect(x, y, muteButton.width, muteButton.height, 8, 8);
+
+        // Speaker body and cone.
+        g.fillRect(x + 8, y + 12, 5, 8);
+        g.fillPolygon(new int[] {x + 13, x + 20, x + 20, x + 13},
+            new int[] {y + 12, y + 6, y + 26, y + 20}, 4);
+
+        g.setStroke(new BasicStroke(2f));
+        if (muted) {
+            g.setColor(new Color(255, 99, 71));
+            g.drawLine(x + 24, y + 11, x + 32, y + 21);
+            g.drawLine(x + 32, y + 11, x + 24, y + 21);
+        } else {
+            g.drawArc(x + 16, y + 10, 10, 12, -50, 100);
+            g.drawArc(x + 16, y + 5, 18, 22, -50, 100);
+        }
+        g.setStroke(new BasicStroke(1f));
     }
 
     private void drawYouTag(Graphics2D g) {

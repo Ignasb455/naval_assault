@@ -5,13 +5,14 @@ import gunmayhem.core.drops.Weapon;
 import gunmayhem.core.stages.Platform;
 import java.awt.Color;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * A controllable character. Holds physics state (position/velocity), the
  * Gun-Mayhem-style damage/knockback meter, and the input intent set each frame
  * by the input layer. All movement resolution lives in {@link GameWorld}.
  */
-public final class Player implements PlayerStats {
+public final class Player {
     public final int id;
     public final String name;
     public final Color color;
@@ -24,11 +25,13 @@ public final class Player implements PlayerStats {
     public int lives = GameConfig.START_LIVES;
     public int kills;
     public int lastHitBy = -1;
-    public float damage;               // grows on hits, scales knockback
-    public int facing = 1;             // +1 right, -1 left
+    public float damage; // grows on hits, scales knockback
+    public int facing = 1; // +1 right, -1 left
 
     public boolean onGround;
-    public int jumpsLeft = GameConfig.MAX_JUMPS;
+    // Jumps made since last touching the ground. How many are allowed comes
+    // from stats, so a power-up picked up mid-air counts straight away.
+    public int jumpsUsed;
 
     // The platform currently underfoot, or null in the air. It decides how much
     // grip the surface gives and carries the player when it moves.
@@ -42,9 +45,9 @@ public final class Player implements PlayerStats {
     // Loot-crate state. Everything here resets when the player loses a life.
     public Weapon weapon = new Pistol();
 
-    // The player wrapped in every power-up collected this life, outermost
-    // last. Ask this, not the player, for anything a power-up can change.
-    public PlayerStats stats = this;
+    // Base stats wrapped in every power-up collected this life, the newest
+    // outermost. Only addPowerUp and a respawn change it.
+    private PlayerStats stats = new BaseStats();
 
     // Input intent for the current frame, set by the server from the owning
     // client's input messages.
@@ -65,26 +68,18 @@ public final class Player implements PlayerStats {
         return lives > 0;
     }
 
-    // Base stats, before any power-up.
-
-    @Override
-    public float speedMultiplier() {
-        return 1f;
+    /** Ask this for anything a power-up can change. */
+    public PlayerStats stats() {
+        return stats;
     }
 
-    @Override
-    public int maxJumps() {
-        return GameConfig.MAX_JUMPS;
-    }
-
-    @Override
-    public boolean absorbHit() {
-        return false;
-    }
-
-    @Override
-    public boolean hasShield() {
-        return false;
+    /**
+     * Wrap the current stats in one more power-up, e.g.
+     * {@code addPowerUp(SpeedPowerUp::new)}. The player does the wrapping, so
+     * a caller can only add a layer, never replace the chain.
+     */
+    public void addPowerUp(Function<PlayerStats, PlayerStats> powerUp) {
+        stats = powerUp.apply(stats);
     }
 
     public Aabb bounds() {
@@ -103,11 +98,11 @@ public final class Player implements PlayerStats {
 
     /** Attempt a jump. Works from the ground or as an air (double) jump. */
     public void jump() {
-        if (!isAlive() || jumpsLeft <= 0) {
+        if (!isAlive() || jumpsUsed >= stats.maxJumps()) {
             return;
         }
         vy = -GameConfig.JUMP_SPEED;
-        jumpsLeft--;
+        jumpsUsed++;
         onGround = false;
         ground = null;
     }
@@ -184,7 +179,7 @@ public final class Player implements PlayerStats {
 
         // Crate loot is lost on death.
         weapon = new Pistol();
-        stats = this;
-        jumpsLeft = stats.maxJumps();
+        stats = new BaseStats();
+        jumpsUsed = 0;
     }
 }

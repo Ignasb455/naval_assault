@@ -17,6 +17,6 @@ public final class SpeedBoost implements CommonDrop {
 
     @Override
     public void applyTo(Player player) {
-        player.stats = new SpeedPowerUp(player.stats);
+        player.addPowerUp(SpeedPowerUp::new);
     }
 }
