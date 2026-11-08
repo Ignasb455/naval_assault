@@ -114,7 +114,7 @@ public final class GameServer {
 
             adminConsole.listen(System.in);
             System.out.println("Admin commands: give <slot> <weapon>, lives <slot> <n>,"
-                + " crate, undo, history");
+                + " crate, stage save|rewind, group <label>, group end, undo, history");
             Thread loop = new Thread(this::gameLoop, "game-loop");
             loop.setDaemon(true);
             loop.start();
