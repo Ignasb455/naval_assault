@@ -59,4 +59,28 @@ public final class MovingPlatform extends Platform {
             direction = 1;
         }
     }
+
+    // ---- Memento -----------------------------------------------------------
+
+    /**
+     * Where the platform is in its run. Private on purpose: outside this class
+     * the values are unreachable, which is what makes the snapshot something
+     * only the platform itself can take or put back.
+     */
+    private record Travel(float offset, float lastOffset, int direction)
+            implements PlatformMemento { }
+
+    @Override
+    public PlatformMemento save() {
+        return new Travel(offset, lastOffset, direction);
+    }
+
+    @Override
+    public void restore(PlatformMemento memento) {
+        if (memento instanceof Travel travel) {
+            offset = travel.offset();
+            lastOffset = travel.lastOffset();
+            direction = travel.direction();
+        }
+    }
 }

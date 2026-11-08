@@ -67,4 +67,16 @@ public abstract class Platform {
     /** Advance per-platform state. Most materials have none. */
     public void update(float dt) {
     }
+
+    /**
+     * Capture whatever moving state this platform has, for restoring later.
+     * Materials that stand still have none and save nothing.
+     */
+    public PlatformMemento save() {
+        return null;
+    }
+
+    /** Put back a state produced by this platform's own {@link #save()}. */
+    public void restore(PlatformMemento memento) {
+    }
 }

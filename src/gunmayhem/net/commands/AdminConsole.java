@@ -7,6 +7,7 @@ import gunmayhem.core.drops.SemiAutoPistol;
 import gunmayhem.core.drops.Shotgun;
 import gunmayhem.core.drops.Smg;
 import gunmayhem.core.drops.Weapon;
+import gunmayhem.core.stages.StageMemento;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,6 +25,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  *   give &lt;slot&gt; pistol|semi|smg|shotgun   hand a player a weapon
  *   lives &lt;slot&gt; &lt;n&gt;                      set a player's remaining lives
  *   crate                                 drop a random crate now
+ *   stage save                            remember where the platforms are
+ *   stage rewind                          put them back there
  *   group &lt;label&gt;                         start recording a group
  *   group end                             close it; the group runs as one command
  *   undo                                  take back the last command
@@ -44,6 +47,10 @@ public final class AdminConsole {
     // One builder per open group. Pushing a second one while the first is
     // still recording is what nests them.
     private final Deque<CommandGroupBuilder> recording = new ArrayDeque<>();
+
+    // Caretaker: the last `stage save`. Opaque here - only the platforms that
+    // produced the pieces inside can read or apply them.
+    private StageMemento savedStage;
 
     // Commands hold references into one match; a new match starts a new history.
     private GameWorld historyWorld;
@@ -127,11 +134,13 @@ public final class AdminConsole {
                 }
             }
             case "group" -> group(arg);
+            case "stage" -> stage(arg, world);
             default -> {
                 AdminCommand command = parse(arg, world);
                 if (command == null) {
                     out.println("[admin] commands: give <slot> pistol|semi|smg|shotgun,"
-                        + " lives <slot> <n>, crate, group <label>, group end, undo, history");
+                        + " lives <slot> <n>, crate, stage save|rewind,"
+                        + " group <label>, group end, undo, history");
                 } else {
                     accept(command);
                 }
@@ -166,6 +175,33 @@ public final class AdminConsole {
         } else {
             recording.push(new CommandGroupBuilder(arg[1]));
             out.println("[admin] recording '" + arg[1] + "' — close it with 'group end'");
+        }
+    }
+
+    /**
+     * {@code stage save} takes a snapshot of where the moving platforms are;
+     * {@code stage rewind} puts them back there. This console is the
+     * caretaker: it holds the memento and never looks inside it.
+     */
+    private void stage(String[] arg, GameWorld world) {
+        if (arg.length < 2) {
+            out.println("[admin] stage save   or   stage rewind");
+            return;
+        }
+        switch (arg[1]) {
+            case "save" -> {
+                savedStage = world.stage().save();
+                out.println("[admin] stage saved (" + savedStage.moving() + " of "
+                    + savedStage.size() + " platforms move)");
+            }
+            case "rewind" -> {
+                if (savedStage == null) {
+                    out.println("[admin] nothing saved yet - run 'stage save' first");
+                    return;
+                }
+                accept(new StageRewindCommand(world.stage(), savedStage));
+            }
+            default -> out.println("[admin] stage save   or   stage rewind");
         }
     }
 

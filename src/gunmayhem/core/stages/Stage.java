@@ -65,6 +65,31 @@ public abstract class Stage {
     }
 
     /**
+     * Ask every platform for its state and bundle the answers. The stage does
+     * not look at what comes back — it only keeps the order, so each memento
+     * returns to the platform that made it.
+     */
+    public final StageMemento save() {
+        List<PlatformMemento> saved = new ArrayList<>();
+        for (Platform plat : platforms()) {
+            saved.add(plat.save());
+        }
+        return new StageMemento(saved);
+    }
+
+    /** Hand each platform back its own saved state. */
+    public final void restore(StageMemento memento) {
+        List<Platform> current = platforms();
+        List<PlatformMemento> saved = memento.platforms();
+        if (saved.size() != current.size()) {
+            return; // a snapshot from a different stage: nothing sensible to do
+        }
+        for (int i = 0; i < current.size(); i++) {
+            current.get(i).restore(saved.get(i));
+        }
+    }
+
+    /**
      * Where the {@code slot}-th player of a match (0-based) appears, both at
      * the start and after losing a life. Worked out from where the platforms
      * are at this moment, so there is always one underneath - including on a
