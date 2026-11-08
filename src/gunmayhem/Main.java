@@ -7,6 +7,7 @@ import gunmayhem.core.events.ObserverDemo;
 import gunmayhem.core.prototype.PrototypeDemo;
 import gunmayhem.net.BuilderDemo;
 import gunmayhem.net.GameServer;
+import gunmayhem.net.commands.CompositeDemo;
 import gunmayhem.core.gamemodes.FirstToThreeKills;
 import gunmayhem.core.gamemodes.GameMode;
 import gunmayhem.core.gamemodes.LastManStanding;
@@ -40,6 +41,7 @@ public final class Main {
             case "observer" -> ObserverDemo.run();
             case "builder" -> BuilderDemo.run();
             case "prototype" -> PrototypeDemo.run();
+            case "composite" -> CompositeDemo.run();
             case "server" -> {
                 int port = args.length > 1 ? Integer.parseInt(args[1]) : GameServer.DEFAULT_PORT;
                 // Mode and stage names never overlap, so they may come in either order.
@@ -77,6 +79,7 @@ public final class Main {
                 System.err.println("  java -cp out gunmayhem.Main observer   (game event observers demo)");
                 System.err.println("  java -cp out gunmayhem.Main builder    (two concrete builders demo)");
                 System.err.println("  java -cp out gunmayhem.Main prototype  (shallow vs deep copy demo)");
+                System.err.println("  java -cp out gunmayhem.Main composite  (nested admin command group demo)");
             }
         }
     }
