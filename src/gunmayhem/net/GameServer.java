@@ -316,9 +316,12 @@ public final class GameServer {
         }
 
         GameWorld world = state.world();
-        Player player = world != null ? world.playerById(client.playerId()) : null;
+        if (world == null) {
+            return; // in the lobby: nobody has a character yet
+        }
+        Player player = world.playerById(client.playerId());
         if (player == null) {
-            return; // in the lobby, or a spectatorless slot: nothing to drive
+            return; // a slot with nothing to drive in this match
         }
         // Whether an action still counts is the state's call, not a flag read
         // off the world at each case.
