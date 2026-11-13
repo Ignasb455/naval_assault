@@ -47,6 +47,8 @@ public final class MovingPlatform extends Platform {
     @Override public float deltaX() { return axisX * (offset - lastOffset); }
     @Override public float deltaY() { return axisY * (offset - lastOffset); }
 
+    @Override public boolean travels() { return true; }
+
     @Override
     public void update(float dt) {
         lastOffset = offset;
@@ -58,5 +60,40 @@ public final class MovingPlatform extends Platform {
             offset = -range;
             direction = 1;
         }
+    }
+
+    // ---- Memento -----------------------------------------------------------
+
+    /**
+     * Where the platform is in its run. Private on purpose, and it never
+     * leaves this class: {@link #save()} and {@link #restore()} take no
+     * arguments, so a caller cannot read the snapshot, build one, or hand
+     * back something other than what was saved.
+     */
+    private record Memento(float offset, float lastOffset, int direction) { }
+
+    private Memento checkpoint;
+
+    @Override
+    public void save() {
+        checkpoint = new Memento(offset, lastOffset, direction);
+    }
+
+    /**
+     * Swaps rather than overwrites: whatever is replaced becomes the new
+     * checkpoint, so restoring a second time puts things back as they were.
+     * That is how the admin command undoes a rewind without ever holding the
+     * snapshot itself.
+     */
+    @Override
+    public void restore() {
+        if (checkpoint == null) {
+            return; // nothing was ever saved
+        }
+        Memento replaced = new Memento(offset, lastOffset, direction);
+        offset = checkpoint.offset();
+        lastOffset = checkpoint.lastOffset();
+        direction = checkpoint.direction();
+        checkpoint = replaced;
     }
 }

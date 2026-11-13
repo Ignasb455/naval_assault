@@ -65,6 +65,35 @@ public abstract class Stage {
     }
 
     /**
+     * Tell every platform to remember where it is. Nothing comes back: each
+     * one keeps its own snapshot, so there is no bundle for a caller to hold,
+     * inspect, or swap for a different one.
+     */
+    public final void save() {
+        for (Platform plat : platforms()) {
+            plat.save();
+        }
+    }
+
+    /** Tell every platform to go back to what it last remembered. */
+    public final void restore() {
+        for (Platform plat : platforms()) {
+            plat.restore();
+        }
+    }
+
+    /** How many platforms here actually travel, for the admin console's reply. */
+    public final int movingPlatformCount() {
+        int moving = 0;
+        for (Platform plat : platforms()) {
+            if (plat.travels()) {
+                moving++;
+            }
+        }
+        return moving;
+    }
+
+    /**
      * Where the {@code slot}-th player of a match (0-based) appears, both at
      * the start and after losing a life. Worked out from where the platforms
      * are at this moment, so there is always one underneath - including on a

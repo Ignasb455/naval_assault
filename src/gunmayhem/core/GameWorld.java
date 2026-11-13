@@ -81,6 +81,7 @@ public final class GameWorld {
     public List<Player> players()     { return players; }
     public List<Bullet> bullets()     { return bullets; }
     public List<Platform> platforms() { return stage.platforms(); }
+    public Stage stage()              { return stage; }
     public List<LootCrate> crates()   { return crates; }
     public boolean isOver()           { return over; }
     public Player winner()            { return winner; }

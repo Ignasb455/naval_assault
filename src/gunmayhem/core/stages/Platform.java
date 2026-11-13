@@ -67,4 +67,24 @@ public abstract class Platform {
     /** Advance per-platform state. Most materials have none. */
     public void update(float dt) {
     }
+
+    /**
+     * Remember where this platform is, so {@link #restore()} can bring it
+     * back. Materials that stand still have nothing to remember.
+     *
+     * <p>Neither method takes or returns the saved state: a platform keeps its
+     * own, which is what makes it impossible for a caller to restore anything
+     * other than what was actually saved here.
+     */
+    public void save() {
+    }
+
+    /** Put back what the last {@link #save()} remembered. */
+    public void restore() {
+    }
+
+    /** Whether this material moves, and so has anything to save at all. */
+    public boolean travels() {
+        return false;
+    }
 }

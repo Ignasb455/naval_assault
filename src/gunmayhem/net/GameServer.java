@@ -10,6 +10,8 @@ import gunmayhem.core.gamemodes.GameMode;
 import gunmayhem.core.events.MatchLog;
 import gunmayhem.core.gamemodes.LastManStanding;
 import gunmayhem.net.commands.AdminConsole;
+import gunmayhem.net.state.LobbyState;
+import gunmayhem.net.state.ServerState;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -23,18 +25,24 @@ import java.util.Map;
  * Authoritative game server and match-maker. It is the only place the game is
  * simulated — there is no local play mode.
  *
- * <p>A session runs through two phases:
+ * <p>A session runs through three states, each of which decides for itself
+ * what the server allows while it is current (see {@link ServerState}):
  * <ol>
- *   <li><b>Lobby</b> — clients connect and send the nickname their player chose.
- *       As soon as {@link GameConfig#MIN_PLAYERS} are connected a
- *       {@link GameConfig#LOBBY_COUNTDOWN_SECONDS}-second countdown starts and
- *       is broadcast to everyone, so all clients see the same clock. Late
- *       joiners are welcome while it runs, up to {@link GameConfig#MAX_PLAYERS}.
- *       If the lobby drops back below the minimum the countdown is cancelled.</li>
- *   <li><b>Running</b> — the countdown hit zero: the roster is frozen, the world
- *       is built and every further connection is rejected. The server applies
- *       each client's input, steps the simulation at ~60 Hz and broadcasts a
- *       {@link StateSnapshot} each tick.</li>
+ *   <li>{@link gunmayhem.net.state.LobbyState} — clients connect and send the
+ *       nickname their player chose. As soon as {@link GameConfig#MIN_PLAYERS}
+ *       are connected a {@link GameConfig#LOBBY_COUNTDOWN_SECONDS}-second
+ *       countdown starts and is broadcast to everyone, so all clients see the
+ *       same clock. Late joiners are welcome while it runs, up to
+ *       {@link GameConfig#MAX_PLAYERS}. If the lobby drops back below the
+ *       minimum the countdown is cancelled.</li>
+ *   <li>{@link gunmayhem.net.state.RunningState} — the countdown hit zero: the
+ *       roster is frozen, the world is built and every further connection is
+ *       rejected. The server applies each client's input, steps the simulation
+ *       at ~60 Hz and broadcasts a {@link StateSnapshot} each tick.</li>
+ *   <li>{@link gunmayhem.net.state.MatchOverState} — the game mode declared a
+ *       winner. The world is still broadcast so the result stays on screen,
+ *       but it is no longer stepped and player actions no longer reach it;
+ *       only a rematch request means anything.</li>
  * </ol>
  *
  * <p>Wire protocol (one JSON object per line):
@@ -50,8 +58,6 @@ import java.util.Map;
  */
 public final class GameServer {
     public static final int DEFAULT_PORT = 5010;
-
-    private enum Phase { LOBBY, RUNNING }
 
     private final int port;
     private final GameMode gameMode;
@@ -69,11 +75,12 @@ public final class GameServer {
     /** Connected clients. Every field below is guarded by this list's monitor. */
     private final List<ClientHandler> clients = new ArrayList<>();
 
-    private Phase phase = Phase.LOBBY;
-    private GameWorld world;                  // null while in the lobby
-    private boolean counting;
-    private float countdown = GameConfig.LOBBY_COUNTDOWN_SECONDS;
-    private boolean restartRequested;
+    /**
+     * What the server is doing right now. Each state carries the data only it
+     * needs — the lobby its countdown, a match its world — so this is the one
+     * field that used to be four. Read and written only under the clients lock.
+     */
+    private ServerState state = new LobbyState(this);
 
     private volatile boolean running = true;
 
@@ -107,7 +114,7 @@ public final class GameServer {
 
             adminConsole.listen(System.in);
             System.out.println("Admin commands: give <slot> <weapon>, lives <slot> <n>,"
-                + " crate, undo, history");
+                + " crate, stage save|rewind, group <label>, group end, undo, history");
             Thread loop = new Thread(this::gameLoop, "game-loop");
             loop.setDaemon(true);
             loop.start();
@@ -122,7 +129,7 @@ public final class GameServer {
         while (running) {
             Socket socket = serverSocket.accept();
             synchronized (clients) {
-                if (phase != Phase.LOBBY) {
+                if (!state.admitsConnections()) {
                     reject(socket, "in_progress", "A match is already in progress.");
                 } else if (clients.size() >= GameConfig.MAX_PLAYERS) {
                     reject(socket, "full", "The lobby is full ("
@@ -205,16 +212,12 @@ public final class GameServer {
             synchronized (clients) {
                 pruneDisconnected();
                 applyInputs();
-                adminConsole.runPending(world);
-                if (phase == Phase.LOBBY) {
-                    updateLobby(dt);
-                }
-                // updateLobby may have started the match, so re-check the phase.
-                if (phase == Phase.RUNNING) {
-                    stepMatch(dt);
-                }
-                broadcast(phase == Phase.LOBBY ? lobbyView().toJson()
-                                               : StateSnapshot.fromWorld(world).toJson());
+                adminConsole.runPending(state.world());
+                // A tick may hand over to another state — the lobby starting a
+                // match, a match ending — so the broadcast asks again which
+                // state is current rather than assuming the one that ticked.
+                state.tick(dt);
+                broadcast(state.broadcastJson());
                 pruneDisconnected();
             }
 
@@ -227,83 +230,68 @@ public final class GameServer {
         }
     }
 
-    /** Caller must hold the {@code clients} lock. */
-    private void updateLobby(float dt) {
-        int joined = clients.size();
-        if (!counting && joined >= GameConfig.MIN_PLAYERS) {
-            counting = true;
-            countdown = GameConfig.LOBBY_COUNTDOWN_SECONDS;
-            System.out.println(joined + " players connected — starting in "
-                + (int) GameConfig.LOBBY_COUNTDOWN_SECONDS + "s.");
-        } else if (counting && joined < GameConfig.MIN_PLAYERS) {
-            counting = false;
-            countdown = GameConfig.LOBBY_COUNTDOWN_SECONDS;
-            System.out.println("Countdown cancelled — waiting for at least "
-                + GameConfig.MIN_PLAYERS + " players.");
-        }
-        if (counting) {
-            countdown -= dt;
-            if (countdown <= 0f) {
-                startMatch();
-            }
-        }
-    }
-
     private Stage pickStage() {
         return fixedStageId == null ? Stages.random(rng) : Stages.byId(fixedStageId);
     }
 
-    private GameWorld newWorld(List<PlayerSpec> roster, Stage stage) {
-        GameWorld w = new GameWorld(roster, stage, gameMode);
-        w.addObserver(new MatchLog(System.out)); // narrate the match on this console
-        return w;
+    // ---- What the states are allowed to ask of the server --------------------
+
+    /** Swap in the next state. Caller must hold the {@code clients} lock. */
+    public void setState(ServerState next) {
+        this.state = next;
     }
 
-    /** Caller must hold the {@code clients} lock. */
-    private void startMatch() {
+    /** The admin console, so the state demo can type into it. */
+    public AdminConsole admin() {
+        return adminConsole;
+    }
+
+    /** Name of the current state, for logs and the state demo. */
+    public String stateName() {
+        synchronized (clients) {
+            return state.name();
+        }
+    }
+
+    /** How many clients are connected. Caller must hold the {@code clients} lock. */
+    public int clientCount() {
+        return clients.size();
+    }
+
+    /**
+     * Build a match for everyone currently connected, on a stage picked the
+     * usual way, and log it under the given heading.
+     *
+     * <p>Caller must hold the {@code clients} lock.
+     */
+    public GameWorld createWorld(String logLabel) {
         List<PlayerSpec> roster = new ArrayList<>();
         for (ClientHandler c : clients) {
             roster.add(new PlayerSpec(c.playerId(), c.name()));
         }
         Stage stage = pickStage();
-        world = newWorld(roster, stage);
-        phase = Phase.RUNNING;
-        counting = false;
-        countdown = 0f;
-        restartRequested = false;
-        System.out.println("Match started with " + roster.size() + " players on "
+        GameWorld created = new GameWorld(roster, stage, gameMode);
+        created.addObserver(new MatchLog(System.out)); // narrate on this console
+        System.out.println(logLabel + " with " + roster.size() + " players on "
             + stage.displayName() + ": " + names());
-        System.out.println("Further connections are now rejected until the match ends.");
+        return created;
     }
 
-    /** Caller must hold the {@code clients} lock. */
-    private void stepMatch(float dt) {
-        if (restartRequested) {
-            restartRequested = false;
-            if (clients.size() >= GameConfig.MIN_PLAYERS) {
-                List<PlayerSpec> roster = new ArrayList<>();
-                for (ClientHandler c : clients) {
-                    roster.add(new PlayerSpec(c.playerId(), c.name()));
-                }
-                Stage stage = pickStage();
-                world = newWorld(roster, stage);
-                System.out.println("Rematch started with " + roster.size()
-                    + " players on " + stage.displayName() + ": " + names());
-            } else {
-                returnToLobby("not enough players for a rematch");
-                return;
+    /** The lobby view for the countdown the lobby state is running. */
+    public LobbyView lobbyView(boolean counting, float secondsLeft) {
+        synchronized (clients) {
+            List<LobbyView.Seat> seats = new ArrayList<>();
+            for (ClientHandler c : clients) {
+                seats.add(new LobbyView.Seat(c.playerId(), c.name()));
             }
+            return new LobbyView(seats, counting, secondsLeft,
+                GameConfig.MIN_PLAYERS, GameConfig.MAX_PLAYERS);
         }
-        world.update(dt);
     }
 
-    /** Caller must hold the {@code clients} lock. */
-    private void returnToLobby(String why) {
-        phase = Phase.LOBBY;
-        world = null;
-        counting = false;
-        countdown = GameConfig.LOBBY_COUNTDOWN_SECONDS;
-        restartRequested = false;
+    /** Drop back to an empty lobby. Caller must hold the {@code clients} lock. */
+    public void returnToLobby(String why) {
+        state = new LobbyState(this);
         System.out.println("Back to the lobby (" + why + ") — accepting connections again.");
     }
 
@@ -332,53 +320,44 @@ public final class GameServer {
             return;
         }
 
-        Player player = world != null ? world.playerById(client.playerId()) : null;
-        if (player == null) {
-            return; // lobby phase, or a spectatorless slot: nothing to drive
+        GameWorld world = state.world();
+        if (world == null) {
+            return; // in the lobby: nobody has a character yet
         }
+        Player player = world.playerById(client.playerId());
+        if (player == null) {
+            return; // a slot with nothing to drive in this match
+        }
+        // Whether an action still counts is the state's call, not a flag read
+        // off the world at each case.
+        boolean acting = state.acceptsPlayerActions();
         switch (t) {
             case "input" -> {
                 player.wantLeft = Boolean.TRUE.equals(msg.get("left"));
                 player.wantRight = Boolean.TRUE.equals(msg.get("right"));
             }
-            // Actions are ignored once the match is decided, so nothing moves
-            // behind the game-over overlay.
             case "jump" -> {
-                if (!world.isOver()) {
+                if (acting) {
                     player.jump();
                 }
             }
             case "drop" -> {
-                if (!world.isOver()) {
+                if (acting) {
                     player.dropThrough();
                 }
             }
             case "shoot" -> {
-                if (!world.isOver()) {
+                if (acting) {
                     // The world tells its observers; SoundEffects queues the gunshot.
                     world.fire(player);
                 }
             }
-            case "restart" -> {
-                if (world.isOver()) {
-                    restartRequested = true;
-                }
-            }
+            case "restart" -> state.onRestartRequested();
             default -> { /* ignore unknown message types */ }
         }
     }
 
     // ---- Broadcasting -------------------------------------------------------
-
-    /** Caller must hold the {@code clients} lock. */
-    private LobbyView lobbyView() {
-        List<LobbyView.Seat> seats = new ArrayList<>();
-        for (ClientHandler c : clients) {
-            seats.add(new LobbyView.Seat(c.playerId(), c.name()));
-        }
-        return new LobbyView(seats, counting, Math.max(0f, countdown),
-            GameConfig.MIN_PLAYERS, GameConfig.MAX_PLAYERS);
-    }
 
     /** Caller must hold the {@code clients} lock. */
     private void broadcast(String json) {
@@ -395,6 +374,7 @@ public final class GameServer {
                 dead.add(client);
             }
         }
+        GameWorld world = state.world();
         for (ClientHandler client : dead) {
             System.out.println("Client left: \"" + client.name() + "\" (slot "
                 + client.playerId() + ")");
@@ -406,8 +386,8 @@ public final class GameServer {
             client.close();
             clients.remove(client);
         }
-        if (!dead.isEmpty() && phase == Phase.RUNNING && clients.isEmpty()) {
-            returnToLobby("everyone disconnected");
+        if (!dead.isEmpty()) {
+            state.onClientsChanged();
         }
     }
 
