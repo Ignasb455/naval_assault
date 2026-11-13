@@ -121,9 +121,13 @@ public final class StateSnapshot {
     public final int winnerId; // -1 when there is no winner yet / a draw
     public final List<Sound> sounds;
 
+    /** True while the server is in its last-stand state, for the banner. */
+    public final boolean lastStand;
+
     public StateSnapshot(List<PlayerView> players, List<BulletView> bullets,
                          List<CrateView> crates, List<PlatformView> platforms,
-                         boolean over, int winnerId, List<Sound> sounds) {
+                         boolean over, int winnerId, List<Sound> sounds,
+                         boolean lastStand) {
         this.players = players;
         this.bullets = bullets;
         this.crates = crates;
@@ -131,10 +135,19 @@ public final class StateSnapshot {
         this.over = over;
         this.winnerId = winnerId;
         this.sounds = sounds;
+        this.lastStand = lastStand;
     }
 
     /** Capture the current authoritative world state. Server side only. */
     public static StateSnapshot fromWorld(GameWorld world) {
+        return fromWorld(world, false);
+    }
+
+    /**
+     * As above, but told whether the server is in its last-stand state. Only
+     * the server knows that — it is a property of the phase, not of the world.
+     */
+    public static StateSnapshot fromWorld(GameWorld world, boolean lastStand) {
         List<PlayerView> ps = new ArrayList<>();
         for (Player p : world.players()) {
             ps.add(new PlayerViewBuilder()
@@ -168,7 +181,8 @@ public final class StateSnapshot {
         }
         int winner = world.winner() != null ? world.winner().id : -1;
         // Drains the world's sound queue, so the sounds are send once.
-        return new StateSnapshot(ps, bs, cs, pls, world.isOver(), winner, world.drainSounds());
+        return new StateSnapshot(ps, bs, cs, pls, world.isOver(), winner,
+            world.drainSounds(), lastStand);
     }
 
     /** Nickname of the player holding that id, or a blank string if unknown. */
@@ -210,6 +224,7 @@ public final class StateSnapshot {
         root.put("type", "state");
         root.put("over", over);
         root.put("winnerId", winnerId);
+        root.put("lastStand", lastStand);
 
         List<Object> ps = new ArrayList<>();
         for (PlayerView p : players) {
@@ -266,6 +281,7 @@ public final class StateSnapshot {
         Map<String, Object> root = Json.parseObject(json);
         boolean over = asBool(root.get("over"));
         int winnerId = asInt(root.get("winnerId"), -1);
+        boolean lastStand = asBool(root.get("lastStand"));
 
         List<PlayerView> players = new ArrayList<>();
         for (Object o : (List<Object>) root.get("players")) {
@@ -326,7 +342,8 @@ public final class StateSnapshot {
             }
         }
 
-        return new StateSnapshot(players, bullets, crates, platforms, over, winnerId, sounds);
+        return new StateSnapshot(players, bullets, crates, platforms, over, winnerId,
+            sounds, lastStand);
     }
 
     private static String asString(Object o) {

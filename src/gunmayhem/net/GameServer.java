@@ -241,6 +241,11 @@ public final class GameServer {
         this.state = next;
     }
 
+    /** The admin console, so the state demo can type into it. */
+    public AdminConsole admin() {
+        return adminConsole;
+    }
+
     /** Name of the current state, for logs and the state demo. */
     public String stateName() {
         synchronized (clients) {

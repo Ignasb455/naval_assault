@@ -64,6 +64,17 @@ public final class StateDemo {
         latecomer.close();
 
         System.out.println();
+        System.out.println("An admin puts everybody on their last life:");
+        server.admin().submit("group laststand");
+        server.admin().submit("lives 0 1");
+        server.admin().submit("lives 1 1");
+        server.admin().submit("group end");
+        waitFor(server, "LAST_STAND", 10);
+        report(server, "nobody has a life to spare");
+        System.out.println("  clients are told: lastStand = "
+            + (clients.get(0).latest() != null && clients.get(0).latest().lastStand));
+
+        System.out.println();
         System.out.println("...waiting out the match...");
         waitFor(server, "MATCH_OVER", 15);
         report(server, "the time limit decided it");
@@ -83,8 +94,8 @@ public final class StateDemo {
         report(server, "nobody left to play");
 
         System.out.println();
-        System.out.println("LOBBY -> RUNNING -> MATCH_OVER -> RUNNING -> LOBBY,"
-            + " and each step was the state's own decision.");
+        System.out.println("LOBBY -> RUNNING -> LAST_STAND -> MATCH_OVER -> RUNNING"
+            + " -> LOBBY, and each step was the state's own decision.");
     }
 
     private static NetworkClient connect(String name) {

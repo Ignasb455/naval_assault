@@ -6,6 +6,7 @@ import gunmayhem.net.LobbyView;
 import gunmayhem.net.StateSnapshot;
 import gunmayhem.render.overlay.GameOverOverlay;
 import gunmayhem.render.overlay.Java2DDrawingBackend;
+import gunmayhem.render.overlay.LastStandOverlay;
 import gunmayhem.render.overlay.LobbyStatusOverlay;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -58,6 +59,9 @@ public final class Java2DRenderer implements Renderer {
         drawPlayers(g, state);
         drawHud(g, state);
 
+        if (state.lastStand && !state.over) {
+            new LastStandOverlay(new Java2DDrawingBackend(g)).draw(state);
+        }
         if (state.over) {
             new GameOverOverlay(new Java2DDrawingBackend(g)).draw(state);
         }

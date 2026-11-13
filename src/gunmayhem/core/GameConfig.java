@@ -79,6 +79,10 @@ public final class GameConfig {
     // Loot crates: one falls every CRATE_INTERVAL seconds, lands on the first
     // platform below it and waits to be picked up.
     public static final float CRATE_INTERVAL = 12f;
+
+    // Once nobody has a life to spare the crates come three times as often,
+    // so there is a reason to break cover when losing a fight ends the match.
+    public static final float LAST_STAND_CRATE_INTERVAL = 4f;
     public static final float CRATE_SIZE = 28f;
     public static final float CRATE_FALL_SPEED = 260f;
 

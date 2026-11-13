@@ -47,6 +47,31 @@ public final class RunningState implements ServerState, GameObserver {
     @Override
     public void tick(float dt) {
         world.update(dt);
+
+        // Checked after the step, and only while the match is still open: if
+        // that update decided it, onMatchOver has already moved us on.
+        if (!world.isOver() && nobodyHasALifeToSpare()) {
+            server.setState(new LastStandState(server, world));
+        }
+    }
+
+    /**
+     * True once every player still in the match is on their last life. Takes
+     * two or more of them — with one left the match is about to end anyway,
+     * and there would be nobody to make it tense for.
+     */
+    private boolean nobodyHasALifeToSpare() {
+        int standing = 0;
+        for (Player player : world.players()) {
+            if (!player.isAlive()) {
+                continue;
+            }
+            if (player.lives > 1) {
+                return false;
+            }
+            standing++;
+        }
+        return standing >= 2;
     }
 
     @Override
