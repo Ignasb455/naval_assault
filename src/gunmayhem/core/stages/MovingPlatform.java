@@ -47,6 +47,8 @@ public final class MovingPlatform extends Platform {
     @Override public float deltaX() { return axisX * (offset - lastOffset); }
     @Override public float deltaY() { return axisY * (offset - lastOffset); }
 
+    @Override public boolean travels() { return true; }
+
     @Override
     public void update(float dt) {
         lastOffset = offset;
@@ -63,24 +65,35 @@ public final class MovingPlatform extends Platform {
     // ---- Memento -----------------------------------------------------------
 
     /**
-     * Where the platform is in its run. Private on purpose: outside this class
-     * the values are unreachable, which is what makes the snapshot something
-     * only the platform itself can take or put back.
+     * Where the platform is in its run. Private on purpose, and it never
+     * leaves this class: {@link #save()} and {@link #restore()} take no
+     * arguments, so a caller cannot read the snapshot, build one, or hand
+     * back something other than what was saved.
      */
-    private record Travel(float offset, float lastOffset, int direction)
-            implements PlatformMemento { }
+    private record Memento(float offset, float lastOffset, int direction) { }
+
+    private Memento checkpoint;
 
     @Override
-    public PlatformMemento save() {
-        return new Travel(offset, lastOffset, direction);
+    public void save() {
+        checkpoint = new Memento(offset, lastOffset, direction);
     }
 
+    /**
+     * Swaps rather than overwrites: whatever is replaced becomes the new
+     * checkpoint, so restoring a second time puts things back as they were.
+     * That is how the admin command undoes a rewind without ever holding the
+     * snapshot itself.
+     */
     @Override
-    public void restore(PlatformMemento memento) {
-        if (memento instanceof Travel travel) {
-            offset = travel.offset();
-            lastOffset = travel.lastOffset();
-            direction = travel.direction();
+    public void restore() {
+        if (checkpoint == null) {
+            return; // nothing was ever saved
         }
+        Memento replaced = new Memento(offset, lastOffset, direction);
+        offset = checkpoint.offset();
+        lastOffset = checkpoint.lastOffset();
+        direction = checkpoint.direction();
+        checkpoint = replaced;
     }
 }

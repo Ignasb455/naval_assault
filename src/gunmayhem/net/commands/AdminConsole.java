@@ -7,7 +7,6 @@ import gunmayhem.core.drops.SemiAutoPistol;
 import gunmayhem.core.drops.Shotgun;
 import gunmayhem.core.drops.Smg;
 import gunmayhem.core.drops.Weapon;
-import gunmayhem.core.stages.StageMemento;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,9 +47,10 @@ public final class AdminConsole {
     // still recording is what nests them.
     private final Deque<CommandGroupBuilder> recording = new ArrayDeque<>();
 
-    // Caretaker: the last `stage save`. Opaque here - only the platforms that
-    // produced the pieces inside can read or apply them.
-    private StageMemento savedStage;
+    // Whether `stage save` has been run on this match. The console decides
+    // when to save and rewind, but never holds the snapshot itself - the
+    // platforms keep their own, so there is nothing here to hand back.
+    private boolean stageSaved;
 
     // Commands hold references into one match; a new match starts a new history.
     private GameWorld historyWorld;
@@ -86,9 +86,11 @@ public final class AdminConsole {
     /** Run every queued line against the current match. Game-loop thread only. */
     public void runPending(GameWorld world) {
         if (world != historyWorld) {
-            // Half-recorded groups hold players from the match that just ended.
+            // Half-recorded groups hold players from the match that just ended,
+            // and a new match brings new platforms with nothing saved yet.
             history.clear();
             recording.clear();
+            stageSaved = false;
             historyWorld = world;
         }
         String line;
@@ -190,16 +192,17 @@ public final class AdminConsole {
         }
         switch (arg[1]) {
             case "save" -> {
-                savedStage = world.stage().save();
-                out.println("[admin] stage saved (" + savedStage.moving() + " of "
-                    + savedStage.size() + " platforms move)");
+                world.stage().save();
+                stageSaved = true;
+                out.println("[admin] stage saved (" + world.stage().movingPlatformCount()
+                    + " of " + world.platforms().size() + " platforms move)");
             }
             case "rewind" -> {
-                if (savedStage == null) {
+                if (!stageSaved) {
                     out.println("[admin] nothing saved yet - run 'stage save' first");
                     return;
                 }
-                accept(new StageRewindCommand(world.stage(), savedStage));
+                accept(new StageRewindCommand(world.stage()));
             }
             default -> out.println("[admin] stage save   or   stage rewind");
         }

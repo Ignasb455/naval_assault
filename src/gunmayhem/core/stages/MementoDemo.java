@@ -6,10 +6,11 @@ import java.util.Locale;
  * Drifts a stage, saves where its platforms are, drifts further, then puts
  * them back. Run with {@code java -cp out gunmayhem.Main memento}.
  *
- * <p>The point to watch: this class holds a {@link StageMemento} and hands it
- * back, but there is nothing on it to read. A moving platform keeps its
- * offset and direction private, so nobody else can capture or rebuild that
- * state — which is exactly when a memento is the right answer.
+ * <p>The point to watch: nothing here ever sees the saved state. {@code save()}
+ * returns nothing and {@code restore()} takes nothing, so this class cannot
+ * read the snapshot, keep a copy of it, or hand back one of its own making —
+ * each platform holds what it remembered and is the only thing that can apply
+ * it.
  */
 public final class MementoDemo {
     private static final float STEP = 1f / 60f;
@@ -17,43 +18,48 @@ public final class MementoDemo {
     private MementoDemo() { }
 
     public static void run() {
-        System.out.println("Drift: every platform travels, so the memento has work to do.");
+        System.out.println("Drift: every platform travels, so there is state worth saving.");
         Stage drift = new DriftStage();
-        drift.platforms(); // build them before the first tick
+        System.out.println("  " + drift.movingPlatformCount() + " of "
+            + drift.platforms().size() + " platforms move");
 
         tick(drift, 2f);
-        System.out.println("  after 2s   " + positions(drift));
-
-        StageMemento saved = drift.save();
-        System.out.println("  saved      " + saved.moving() + " of " + saved.size()
-            + " platforms had travel state");
+        drift.save();
         String atSave = positions(drift);
+        System.out.println("  saved at   " + atSave);
 
         tick(drift, 2.5f);
-        System.out.println("  after 4.5s " + positions(drift));
+        String drifted = positions(drift);
+        System.out.println("  2.5s later " + drifted);
 
-        drift.restore(saved);
-        String afterRestore = positions(drift);
-        System.out.println("  restored   " + afterRestore);
-        System.out.println("  identical to the saved moment: " + afterRestore.equals(atSave));
+        drift.restore();
+        String restored = positions(drift);
+        System.out.println("  restored   " + restored);
+        System.out.println("  back to the saved moment exactly: " + restored.equals(atSave));
+
+        // Restoring swaps, so a second call returns to where the first one
+        // found things. That is all an undo needs to be.
+        drift.restore();
+        System.out.println("  restored again: " + positions(drift));
+        System.out.println("  back to where the restore found things: "
+            + positions(drift).equals(drifted));
 
         System.out.println();
-        System.out.println("A platform that cannot move saves nothing, and the caretaker"
-            + " cannot tell:");
+        System.out.println("A platform that cannot move has nothing to remember:");
         Stage classic = new ClassicStage();
-        classic.platforms();
-        StageMemento none = classic.save();
-        System.out.println("  Classic    " + none.moving() + " of " + none.size()
-            + " platforms had travel state");
+        System.out.println("  Classic    " + classic.movingPlatformCount() + " of "
+            + classic.platforms().size() + " platforms move");
         String before = positions(classic);
-        classic.restore(none);
-        System.out.println("  restoring it is a no-op: " + positions(classic).equals(before));
+        classic.save();
+        classic.restore();
+        System.out.println("  save and restore are a no-op: "
+            + positions(classic).equals(before));
 
         System.out.println();
-        System.out.println("The memento is opaque on purpose: StageMemento exposes only"
-            + " size() and moving(),");
-        System.out.println("and each platform's own state is a private record that no"
-            + " other class can read.");
+        System.out.println("Nothing above could pass a snapshot in: save() takes no"
+            + " arguments and returns none,");
+        System.out.println("and the record holding the values is private to"
+            + " MovingPlatform.");
     }
 
     private static void tick(Stage stage, float seconds) {

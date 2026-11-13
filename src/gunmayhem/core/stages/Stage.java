@@ -65,28 +65,32 @@ public abstract class Stage {
     }
 
     /**
-     * Ask every platform for its state and bundle the answers. The stage does
-     * not look at what comes back — it only keeps the order, so each memento
-     * returns to the platform that made it.
+     * Tell every platform to remember where it is. Nothing comes back: each
+     * one keeps its own snapshot, so there is no bundle for a caller to hold,
+     * inspect, or swap for a different one.
      */
-    public final StageMemento save() {
-        List<PlatformMemento> saved = new ArrayList<>();
+    public final void save() {
         for (Platform plat : platforms()) {
-            saved.add(plat.save());
+            plat.save();
         }
-        return new StageMemento(saved);
     }
 
-    /** Hand each platform back its own saved state. */
-    public final void restore(StageMemento memento) {
-        List<Platform> current = platforms();
-        List<PlatformMemento> saved = memento.platforms();
-        if (saved.size() != current.size()) {
-            return; // a snapshot from a different stage: nothing sensible to do
+    /** Tell every platform to go back to what it last remembered. */
+    public final void restore() {
+        for (Platform plat : platforms()) {
+            plat.restore();
         }
-        for (int i = 0; i < current.size(); i++) {
-            current.get(i).restore(saved.get(i));
+    }
+
+    /** How many platforms here actually travel, for the admin console's reply. */
+    public final int movingPlatformCount() {
+        int moving = 0;
+        for (Platform plat : platforms()) {
+            if (plat.travels()) {
+                moving++;
+            }
         }
+        return moving;
     }
 
     /**

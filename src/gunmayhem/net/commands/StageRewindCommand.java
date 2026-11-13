@@ -1,46 +1,39 @@
 package gunmayhem.net.commands;
 
 import gunmayhem.core.stages.Stage;
-import gunmayhem.core.stages.StageMemento;
 
 /**
  * Put the stage's moving platforms back where they were when the admin last
  * ran {@code stage save}.
  *
- * <p>Undo here is the memento pattern rather than a hand-kept field: the
- * command takes a second snapshot before it restores the first, and hands
- * that one back if it is undone. It could not do this any other way — a
- * platform's travel state is private to the platform.
+ * <p>The command never touches the snapshot. It cannot: a platform keeps its
+ * own and exposes no way to read it or pass one in. Restoring swaps what is
+ * saved with what is current, so undoing is the very same call a second time
+ * — the memento pattern doing the work that a hand-kept {@code previous}
+ * field does in the other commands.
  */
 public final class StageRewindCommand implements AdminCommand {
     private final Stage stage;
-    private final StageMemento checkpoint;
+    private final int movingPlatforms;
 
-    /** Where the platforms were just before this command ran. */
-    private StageMemento before;
-
-    public StageRewindCommand(Stage stage, StageMemento checkpoint) {
+    public StageRewindCommand(Stage stage) {
         this.stage = stage;
-        this.checkpoint = checkpoint;
+        this.movingPlatforms = stage.movingPlatformCount();
     }
 
     @Override
     public void execute() {
-        before = stage.save();
-        stage.restore(checkpoint);
+        stage.restore();
     }
 
     @Override
     public boolean undo() {
-        if (before == null) {
-            return false;
-        }
-        stage.restore(before);
+        stage.restore(); // swaps back to where the rewind found things
         return true;
     }
 
     @Override
     public String describe() {
-        return "stage rewind (" + checkpoint.moving() + " moving platforms)";
+        return "stage rewind (" + movingPlatforms + " moving platforms)";
     }
 }
